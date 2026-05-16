@@ -21,7 +21,11 @@ bool connectWiFi() {
 }
 
 bool syncNTP() {
-    _timeClient.begin();
+    static bool _begun = false;
+    if (!_begun) {
+        _timeClient.begin();
+        _begun = true;
+    }
     return _timeClient.forceUpdate();
 }
 

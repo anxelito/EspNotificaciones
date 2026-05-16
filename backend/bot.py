@@ -40,6 +40,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         text = text[:-1].strip()
     else:
         priority = "normal"
+    if not text:
+        await update.message.reply_text("Escribe algo más que '!'")
+        return
     task = await db.add_task(text, priority)
     label = "URGENTE" if priority == "urgent" else "normal"
     await update.message.reply_text(f"✅ #{task.id} [{label}] {task.text}")

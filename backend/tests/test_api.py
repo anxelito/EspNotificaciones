@@ -30,6 +30,7 @@ async def client():
         mock_build.return_value = mock_app
 
         from main import app
+        app.state.bot_app = mock_app  # lifespan doesn't run in ASGITransport
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as c:

@@ -31,6 +31,7 @@ void setup() {
     if (online) {
         drawSplash("Sincronizando hora...");
         syncNTP();
+        lastNTP = millis();
     }
 
     String t = online ? getCurrentTime() : "--:--";

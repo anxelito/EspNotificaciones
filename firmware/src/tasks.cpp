@@ -28,7 +28,7 @@ bool saveTasks(const TaskItem* tasks, int count) {
     JsonDocument doc;
     JsonArray arr = doc.to<JsonArray>();
     for (int i = 0; i < count; i++) {
-        JsonObject obj = arr.createNestedObject();
+        JsonObject obj = arr.add<JsonObject>();
         obj["id"]           = tasks[i].id;
         obj["text"]         = tasks[i].text;
         obj["priority"]     = tasks[i].priority;

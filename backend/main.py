@@ -7,6 +7,11 @@ from telegram import Update
 
 load_dotenv()
 
+_REQUIRED_ENV = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_SECRET_TOKEN", "API_KEY", "BASE_URL"]
+for _var in _REQUIRED_ENV:
+    if not os.getenv(_var):
+        raise RuntimeError(f"Missing required env var: {_var}")
+
 from database import init_db, get_all_tasks
 from auth import verify_api_key, verify_telegram_token
 from bot import build_application
@@ -46,13 +51,10 @@ async def tasks_endpoint(_=Depends(verify_api_key)):
 
 @app.post("/webhook")
 async def webhook(request: Request):
-    global _bot_app
     token = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
     if not verify_telegram_token(token):
         raise HTTPException(status_code=403, detail="Forbidden")
-    if _bot_app is None:
-        _bot_app = build_application()
     data = await request.json()
-    update = Update.de_json(data, _bot_app.bot)
-    await _bot_app.process_update(update)
+    update = Update.de_json(data, app.state.bot_app.bot)
+    await app.state.bot_app.process_update(update)
     return {"ok": True}
