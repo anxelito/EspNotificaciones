@@ -108,4 +108,4 @@ async def cmd_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_clear(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     count = await db.clear_done_tasks()
-    await update.message.reply_text(f"🗑️ {count} tarea(s) done eliminadas")
+    await update.message.reply_text(f"🗑️ {count} tarea(s) completadas eliminadas")
