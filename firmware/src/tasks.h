@@ -11,6 +11,12 @@ struct TaskItem {
     char time_display[16]; // "14:30 16/05"
 };
 
+struct CalEvent {
+    char    summary[48];
+    char    time_display[12];
+    uint8_t day;  // 0 = today, 1 = tomorrow
+};
+
 // Sort: urgent-pending first, normal-pending second, done last
 void sortTasks(TaskItem* tasks, int count);
 

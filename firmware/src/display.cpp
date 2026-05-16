@@ -103,3 +103,90 @@ void redrawAll(TaskItem* tasks, int count, const String& time_str, bool online) 
         );
     }
 }
+
+void drawCalendarPanel(CalEvent* events, int count, const String& time_str, bool online) {
+    tft.fillScreen(C_BG);
+
+    // Header
+    tft.fillRect(0, 0, SCREEN_W, HEADER_H, C_HEADER);
+    tft.setTextColor(TFT_WHITE, C_HEADER);
+    tft.drawString("CALENDARIO", 8, 8, 2);
+    uint16_t timeColor = online ? TFT_GREEN : TFT_RED;
+    tft.setTextColor(timeColor, C_HEADER);
+    tft.drawRightString(online ? time_str : "OFFLINE", SCREEN_W - 6, 8, 2);
+
+    if (count == 0) {
+        tft.setTextColor(TFT_DARKGREY, C_BG);
+        tft.drawCentreString("Sin eventos", SCREEN_W / 2, SCREEN_H / 2 - 8, 2);
+        return;
+    }
+
+    int y = HEADER_H + 6;
+    bool shownToday    = false;
+    bool shownTomorrow = false;
+
+    for (int i = 0; i < count && y < SCREEN_H - 16; i++) {
+        CalEvent& e = events[i];
+
+        if (e.day == 0 && !shownToday) {
+            tft.setTextColor(TFT_CYAN, C_BG);
+            tft.drawString("HOY", 8, y, 2);
+            y += 18;
+            shownToday = true;
+        }
+        if (e.day == 1 && !shownTomorrow) {
+            tft.setTextColor(TFT_CYAN, C_BG);
+            tft.drawString("MANANA", 8, y, 2);
+            y += 18;
+            shownTomorrow = true;
+        }
+
+        // Time badge
+        tft.setTextColor(TFT_DARKGREY, C_BG);
+        tft.drawString(e.time_display, 8, y + 2, 1);
+
+        // Summary — truncate to ~22 chars for font 2
+        String txt = String(e.summary);
+        if (txt.length() > 22) txt = txt.substring(0, 21) + "~";
+        tft.setTextColor(TFT_WHITE, C_BG);
+        tft.drawString(txt, 70, y, 2);
+
+        y += 22;
+    }
+}
+
+void drawWeatherPanel(const WeatherData& weather, const String& time_str, bool online) {
+    tft.fillScreen(C_BG);
+
+    // Header
+    tft.fillRect(0, 0, SCREEN_W, HEADER_H, C_HEADER);
+    tft.setTextColor(TFT_WHITE, C_HEADER);
+    tft.drawString("TIEMPO", 8, 8, 2);
+    uint16_t timeColor = online ? TFT_GREEN : TFT_RED;
+    tft.setTextColor(timeColor, C_HEADER);
+    tft.drawRightString(online ? time_str : "OFFLINE", SCREEN_W - 6, 8, 2);
+
+    // Large time — font 6 is 48px, digits only (perfect for HH:MM)
+    tft.setTextColor(TFT_WHITE, C_BG);
+    tft.drawCentreString(time_str, SCREEN_W / 2, HEADER_H + 10, 6);
+
+    // Temperature
+    String tempStr = String(weather.temp, 1) + "C";
+    tft.setTextColor(TFT_CYAN, C_BG);
+    tft.drawCentreString(tempStr, SCREEN_W / 2, HEADER_H + 72, 4);
+
+    // Weather description
+    tft.setTextColor(TFT_DARKGREY, C_BG);
+    tft.drawCentreString(weather.description, SCREEN_W / 2, HEADER_H + 104, 2);
+}
+
+void drawPanel(int panel, TaskItem* tasks, int taskCount,
+               CalEvent* events, int calCount,
+               const WeatherData& weather,
+               const String& time_str, bool online) {
+    switch (panel) {
+        case 0: redrawAll(tasks, taskCount, time_str, online); break;
+        case 1: drawCalendarPanel(events, calCount, time_str, online); break;
+        case 2: drawWeatherPanel(weather, time_str, online);   break;
+    }
+}

@@ -4,13 +4,26 @@
 #include "display.h"
 #include "tasks.h"
 #include "network.h"
+#include "weather.h"
 #include <SPIFFS.h>
 
-static TaskItem tasks[MAX_TASKS];
-static int      taskCount  = 0;
-static bool     online     = false;
-static unsigned long lastPoll = 0;
-static unsigned long lastNTP  = 0;
+static TaskItem   tasks[MAX_TASKS];
+static int        taskCount       = 0;
+static CalEvent   calEvents[MAX_EVENTS];
+static int        calEventCount   = 0;
+static WeatherData weather        = {0.0f, 0, "---"};
+
+static bool          online          = false;
+static int           currentPanel    = 0;
+static unsigned long lastPoll        = 0;
+static unsigned long lastNTP         = 0;
+static unsigned long lastCalPoll     = 0;
+static unsigned long lastWeatherPoll = 0;
+static unsigned long lastPanelSwitch = 0;
+
+static String currentTime() {
+    return online ? getCurrentTime() : "--:--";
+}
 
 void setup() {
     Serial.begin(115200);
@@ -18,7 +31,7 @@ void setup() {
     displayInit();
     drawSplash("Iniciando...");
 
-    SPIFFS.begin(true);  // format on first run if needed
+    SPIFFS.begin(true);
     taskCount = loadTasks(tasks);
     if (taskCount > 0) {
         sortTasks(tasks, taskCount);
@@ -32,20 +45,36 @@ void setup() {
         drawSplash("Sincronizando hora...");
         syncNTP();
         lastNTP = millis();
+
+        drawSplash("Cargando datos...");
+        calEventCount = fetchCalendar(calEvents);
+        if (calEventCount < 0) calEventCount = 0;
+        fetchWeather(&weather);
+        lastCalPoll     = millis();
+        lastWeatherPoll = millis();
     }
 
-    String t = online ? getCurrentTime() : "--:--";
-    redrawAll(tasks, taskCount, t, online);
+    drawPanel(currentPanel, tasks, taskCount, calEvents, calEventCount, weather, currentTime(), online);
+    lastPanelSwitch = millis();
 }
 
 void loop() {
     unsigned long now = millis();
 
+    // NTP re-sync
     if (online && (now - lastNTP >= NTP_SYNC_INTERVAL)) {
         syncNTP();
         lastNTP = now;
     }
 
+    // Panel rotation
+    if (now - lastPanelSwitch >= PANEL_INTERVAL_MS) {
+        currentPanel = (currentPanel + 1) % 3;
+        lastPanelSwitch = now;
+        drawPanel(currentPanel, tasks, taskCount, calEvents, calEventCount, weather, currentTime(), online);
+    }
+
+    // Task poll
     if (now - lastPoll >= POLL_INTERVAL_MS) {
         int result = fetchTasks(tasks);
         if (result >= 0) {
@@ -56,8 +85,22 @@ void loop() {
         } else {
             online = false;
         }
-        String t = online ? getCurrentTime() : "--:--";
-        redrawAll(tasks, taskCount, t, online);
+        if (currentPanel == 0) {
+            drawPanel(0, tasks, taskCount, calEvents, calEventCount, weather, currentTime(), online);
+        }
         lastPoll = now;
+    }
+
+    // Calendar poll
+    if (online && (now - lastCalPoll >= CALENDAR_POLL_MS)) {
+        int result = fetchCalendar(calEvents);
+        if (result >= 0) calEventCount = result;
+        lastCalPoll = now;
+    }
+
+    // Weather poll
+    if (online && (now - lastWeatherPoll >= WEATHER_POLL_MS)) {
+        fetchWeather(&weather);
+        lastWeatherPoll = now;
     }
 }

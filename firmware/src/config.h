@@ -5,6 +5,10 @@
 #define NTP_SYNC_INTERVAL   3600000UL
 #define NTP_SERVER          "pool.ntp.org"
 #define MAX_TASKS           8
+#define PANEL_INTERVAL_MS    5000UL
+#define CALENDAR_POLL_MS   300000UL
+#define WEATHER_POLL_MS    600000UL
+#define MAX_EVENTS           6
 
 // Display geometry (320x240 landscape)
 #define SCREEN_W    320

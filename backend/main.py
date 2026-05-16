@@ -15,6 +15,7 @@ for _var in _REQUIRED_ENV:
 from database import init_db, get_all_tasks
 from auth import verify_api_key, verify_telegram_token
 from bot import build_application
+from calendar_client import fetch_events_async
 
 _bot_app = None
 
@@ -47,6 +48,11 @@ async def health():
 async def tasks_endpoint(_=Depends(verify_api_key)):
     tasks = await get_all_tasks()
     return [t.to_dict() for t in tasks]
+
+
+@app.get("/calendar")
+async def calendar_endpoint(_=Depends(verify_api_key)):
+    return await fetch_events_async()
 
 
 @app.post("/webhook")
