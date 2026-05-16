@@ -9,7 +9,7 @@
 // Display geometry (320x240 landscape)
 #define SCREEN_W    320
 #define SCREEN_H    240
-#define HEADER_H     28
-#define TASK_H       38
-#define TASK_MARGIN   3
-#define BAR_W         3
+#define HEADER_H     32
+#define TASK_H       64
+#define TASK_MARGIN   4
+#define BAR_W         4

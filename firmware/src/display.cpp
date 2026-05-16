@@ -27,14 +27,14 @@ static void drawHeader(const String& time_str, int pending, bool online) {
     tft.fillRect(0, 0, SCREEN_W, HEADER_H, C_HEADER);
 
     tft.setTextColor(TFT_WHITE, C_HEADER);
-    tft.drawString("TAREAS", 8, 7, 2);
+    tft.drawString("TAREAS", 8, 8, 2);
 
     uint16_t timeColor = online ? TFT_GREEN : TFT_RED;
     tft.setTextColor(timeColor, C_HEADER);
-    tft.drawCentreString(online ? time_str : "OFFLINE", SCREEN_W / 2, 7, 2);
+    tft.drawCentreString(online ? time_str : "OFFLINE", SCREEN_W / 2, 8, 2);
 
     tft.setTextColor(TFT_DARKGREY, C_HEADER);
-    tft.drawRightString(String(pending) + " pend", SCREEN_W - 6, 7, 2);
+    tft.drawRightString(String(pending) + " pend", SCREEN_W - 6, 8, 2);
 }
 
 static void drawTask(int index, const TaskItem& task) {
@@ -52,19 +52,21 @@ static void drawTask(int index, const TaskItem& task) {
     tft.fillRect(0, y, SCREEN_W, TASK_H, cardBg);
     tft.fillRect(0, y, BAR_W, TASK_H, barColor);
 
-    // Truncate text to fit (font 2 ~12px per char, usable width ~260px -> ~26 chars)
+    // FreeSansBold18pt7b ~36px, ~16px per char, usable ~255px -> ~15 chars
     String txt = String(task.text);
-    if (txt.length() > 26) txt = txt.substring(0, 25) + "~";
+    if (txt.length() > 15) txt = txt.substring(0, 14) + "~";
 
+    tft.setFreeFont(&FreeSansBold18pt7b);
     tft.setTextColor(textColor, cardBg);
-    tft.drawString(txt, BAR_W + 6, y + 5, 2);
+    tft.drawString(txt, BAR_W + 6, y + 6);
+    tft.setTextFont(2);  // back to built-in font 2
 
     tft.setTextColor(metaColor, cardBg);
-    tft.drawString(String(task.time_display), BAR_W + 6, y + 22, 1);
+    tft.drawString(String(task.time_display), BAR_W + 6, y + 46, 2);
 
     const char* badge = done ? "DONE" : (urgent ? "URGENTE" : "PEND");
     tft.setTextColor(barColor, cardBg);
-    tft.drawRightString(badge, SCREEN_W - 6, y + 13, 1);
+    tft.drawRightString(badge, SCREEN_W - 6, y + 46, 2);
 }
 
 static void drawNoTasks() {
