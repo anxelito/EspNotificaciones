@@ -1,0 +1,17 @@
+# Secrets
+secrets.h
+.env
+*.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# PlatformIO
+firmware/.pio/
+firmware/.vscode/
+
+# Brainstorm artifacts
+.superpowers/
