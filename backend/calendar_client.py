@@ -34,26 +34,13 @@ def _parse_event(event, today: date) -> dict | None:
         return None
 
 
-def fetch_events() -> list[dict]:
-    username = os.getenv("CALDAV_USERNAME", "")
-    password = os.getenv("CALDAV_PASSWORD", "")
-    if not username or not password:
-        return []
-
+def _fetch_from_source(url: str, username: str, password: str, today: date) -> list[dict]:
+    start = datetime.combine(today, datetime.min.time())
+    end = start + timedelta(days=2)
+    results = []
     try:
-        client = caldav.DAVClient(
-            url="https://caldav.icloud.com",
-            username=username,
-            password=password,
-        )
-        principal = client.principal()
-        calendars = principal.calendars()
-
-        today = datetime.now().date()
-        start = datetime.combine(today, datetime.min.time())
-        end = start + timedelta(days=2)
-
-        results = []
+        client = caldav.DAVClient(url=url, username=username, password=password)
+        calendars = client.principal().calendars()
         for cal in calendars:
             try:
                 for event in cal.date_search(start=start, end=end, expand=True):
@@ -62,11 +49,39 @@ def fetch_events() -> list[dict]:
                         results.append(parsed)
             except Exception:
                 continue
-
-        results.sort(key=lambda e: (e["day"], e["_sort"]))
-        return [{"summary": e["summary"], "time_display": e["time_display"], "day": e["day"]} for e in results[:6]]
     except Exception:
-        return []
+        pass
+    return results
+
+
+def fetch_events() -> list[dict]:
+    today = datetime.now().date()
+    results = []
+
+    # iCloud
+    icloud_user = os.getenv("CALDAV_USERNAME", "")
+    icloud_pass = os.getenv("CALDAV_PASSWORD", "")
+    if icloud_user and icloud_pass:
+        results.extend(_fetch_from_source("https://caldav.icloud.com", icloud_user, icloud_pass, today))
+
+    # Google Calendar
+    google_user = os.getenv("GOOGLE_CALDAV_USERNAME", "")
+    google_pass = os.getenv("GOOGLE_CALDAV_PASSWORD", "")
+    if google_user and google_pass:
+        url = f"https://www.google.com/calendar/dav/{google_user}/user"
+        results.extend(_fetch_from_source(url, google_user, google_pass, today))
+
+    # Deduplicate by (summary, day, time_display)
+    seen = set()
+    unique = []
+    for e in results:
+        key = (e["summary"], e["day"], e["time_display"])
+        if key not in seen:
+            seen.add(key)
+            unique.append(e)
+
+    unique.sort(key=lambda e: (e["day"], e["_sort"]))
+    return [{"summary": e["summary"], "time_display": e["time_display"], "day": e["day"]} for e in unique[:6]]
 
 
 async def fetch_events_async() -> list[dict]:
