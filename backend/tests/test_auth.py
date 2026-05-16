@@ -7,13 +7,15 @@ from fastapi import HTTPException
 os.environ.setdefault("API_KEY", "correct-key")
 os.environ.setdefault("TELEGRAM_SECRET_TOKEN", "tg-secret")
 
+_VALID_KEY = os.environ["API_KEY"]
+
 from auth import verify_api_key, verify_telegram_token
 
 
 @pytest.mark.asyncio
 async def test_valid_api_key_passes():
-    # Should not raise
-    await verify_api_key(x_api_key="correct-key")
+    # Should not raise — use whatever key is actually configured
+    await verify_api_key(x_api_key=_VALID_KEY)
 
 
 @pytest.mark.asyncio
