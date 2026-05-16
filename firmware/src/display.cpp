@@ -121,37 +121,40 @@ void drawCalendarPanel(CalEvent* events, int count, const String& time_str, bool
         return;
     }
 
-    int y = HEADER_H + 6;
-    bool shownToday    = false;
-    bool shownTomorrow = false;
+    const int CAL_H = 42;
+    const int SEC_H = 20;
 
-    for (int i = 0; i < count && y < SCREEN_H - 16; i++) {
+    int y      = HEADER_H + TASK_MARGIN;
+    int8_t lastDay = -1;
+
+    for (int i = 0; i < count; i++) {
         CalEvent& e = events[i];
 
-        if (e.day == 0 && !shownToday) {
-            tft.setTextColor(TFT_CYAN, C_BG);
-            tft.drawString("HOY", 8, y, 2);
-            y += 18;
-            shownToday = true;
-        }
-        if (e.day == 1 && !shownTomorrow) {
-            tft.setTextColor(TFT_CYAN, C_BG);
-            tft.drawString("MANANA", 8, y, 2);
-            y += 18;
-            shownTomorrow = true;
+        if ((int8_t)e.day != lastDay) {
+            if (y + SEC_H > SCREEN_H - 4) break;
+            tft.fillRect(0, y, SCREEN_W, SEC_H, C_HEADER);
+            tft.setTextColor(TFT_CYAN, C_HEADER);
+            tft.drawString(e.day == 0 ? "HOY" : "MANANA", BAR_W + 6, y + 3, 2);
+            y += SEC_H + 2;
+            lastDay = e.day;
         }
 
-        // Time badge
-        tft.setTextColor(TFT_DARKGREY, C_BG);
-        tft.drawString(e.time_display, 8, y + 2, 1);
+        if (y + CAL_H > SCREEN_H - 2) break;
 
-        // Summary — truncate to ~22 chars for font 2
+        uint16_t barColor = (e.day == 0) ? TFT_CYAN : TFT_YELLOW;
+
+        tft.fillRect(0, y, SCREEN_W, CAL_H, C_CARD);
+        tft.fillRect(0, y, BAR_W, CAL_H, barColor);
+
         String txt = String(e.summary);
         if (txt.length() > 22) txt = txt.substring(0, 21) + "~";
-        tft.setTextColor(TFT_WHITE, C_BG);
-        tft.drawString(txt, 70, y, 2);
+        tft.setTextColor(TFT_WHITE, C_CARD);
+        tft.drawString(txt, BAR_W + 6, y + 6, 2);
 
-        y += 22;
+        tft.setTextColor(barColor, C_CARD);
+        tft.drawRightString(String(e.time_display), SCREEN_W - 6, y + 24, 2);
+
+        y += CAL_H + TASK_MARGIN;
     }
 }
 
@@ -166,18 +169,36 @@ void drawWeatherPanel(const WeatherData& weather, const String& time_str, bool o
     tft.setTextColor(timeColor, C_HEADER);
     tft.drawRightString(online ? time_str : "OFFLINE", SCREEN_W - 6, 8, 2);
 
-    // Large time — font 6 is 48px, digits only (perfect for HH:MM)
-    tft.setTextColor(TFT_WHITE, C_BG);
-    tft.drawCentreString(time_str, SCREEN_W / 2, HEADER_H + 10, 6);
+    // Clock card
+    const int CLOCK_H = 76;
+    int y = HEADER_H + TASK_MARGIN;
+    tft.fillRect(0, y, SCREEN_W, CLOCK_H, C_CARD);
+    tft.fillRect(0, y, BAR_W, CLOCK_H, TFT_CYAN);
+    tft.setTextColor(TFT_WHITE, C_CARD);
+    tft.drawCentreString(time_str, SCREEN_W / 2, y + 12, 6);
 
-    // Temperature
+    // Weather card — fills remaining space
+    y += CLOCK_H + TASK_MARGIN;
+    const int WX_H = SCREEN_H - y - TASK_MARGIN;
+
+    uint16_t condColor = TFT_DARKGREY;
+    if (strstr(weather.description, "Despejado"))  condColor = TFT_YELLOW;
+    else if (strstr(weather.description, "Nubes")) condColor = 0xC618;  // light grey
+    else if (strstr(weather.description, "Lluvia") ||
+             strstr(weather.description, "Llovizna") ||
+             strstr(weather.description, "Chubascos")) condColor = TFT_BLUE;
+    else if (strstr(weather.description, "Tormenta")) condColor = TFT_RED;
+    else if (strstr(weather.description, "Nieve"))    condColor = TFT_WHITE;
+
+    tft.fillRect(0, y, SCREEN_W, WX_H, C_CARD);
+    tft.fillRect(0, y, BAR_W, WX_H, condColor);
+
     String tempStr = String(weather.temp, 1) + "C";
-    tft.setTextColor(TFT_CYAN, C_BG);
-    tft.drawCentreString(tempStr, SCREEN_W / 2, HEADER_H + 72, 4);
+    tft.setTextColor(TFT_CYAN, C_CARD);
+    tft.drawCentreString(tempStr, SCREEN_W / 2, y + 10, 4);
 
-    // Weather description
-    tft.setTextColor(TFT_DARKGREY, C_BG);
-    tft.drawCentreString(weather.description, SCREEN_W / 2, HEADER_H + 104, 2);
+    tft.setTextColor(TFT_DARKGREY, C_CARD);
+    tft.drawCentreString(weather.description, SCREEN_W / 2, y + 46, 2);
 }
 
 void drawPanel(int panel, TaskItem* tasks, int taskCount,
