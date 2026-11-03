@@ -15,6 +15,7 @@ for _var in _REQUIRED_ENV:
 from database import init_db, get_all_tasks
 from auth import verify_api_key, verify_telegram_token
 from bot import build_application
+from spotify import get_now_playing
 
 _bot_app = None
 
@@ -47,6 +48,11 @@ async def health():
 async def tasks_endpoint(_=Depends(verify_api_key)):
     tasks = await get_all_tasks()
     return [t.to_dict() for t in tasks]
+
+
+@app.get("/nowplaying")
+async def nowplaying_endpoint(_=Depends(verify_api_key)):
+    return await get_now_playing()
 
 
 @app.post("/webhook")

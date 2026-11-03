@@ -70,3 +70,75 @@ int fetchTasks(TaskItem* tasks) {
     }
     return count;
 }
+
+bool fetchNowPlaying(NowPlaying* np) {
+    if (WiFi.status() != WL_CONNECTED) return false;
+
+    WiFiClientSecure client;
+    client.setInsecure();
+
+    HTTPClient http;
+    http.begin(client, NOWPLAYING_URL);
+    http.addHeader("X-API-Key", API_KEY);
+
+    int code = http.GET();
+    if (code != 200) {
+        http.end();
+        return false;
+    }
+
+    String payload = http.getString();
+    http.end();
+
+    JsonDocument doc;
+    if (deserializeJson(doc, payload) != DeserializationError::Ok) return false;
+
+    np->is_playing   = doc["is_playing"] | false;
+    np->progress_ms  = doc["progress_ms"] | 0;
+    np->duration_ms  = doc["duration_ms"] | 0;
+    strlcpy(np->title,       doc["title"]       | "", sizeof(np->title));
+    strlcpy(np->artist,      doc["artist"]      | "", sizeof(np->artist));
+    strlcpy(np->album,       doc["album"]       | "", sizeof(np->album));
+    strlcpy(np->artwork_url, doc["artwork_url"] | "", sizeof(np->artwork_url));
+
+    return true;
+}
+
+int fetchArtwork(const char* url, uint8_t* buf, int maxLen) {
+    if (WiFi.status() != WL_CONNECTED) return -1;
+    if (strlen(url) == 0) return -1;
+
+    WiFiClientSecure client;
+    client.setInsecure();
+
+    HTTPClient http;
+    http.begin(client, url);
+
+    int code = http.GET();
+    if (code != 200) {
+        http.end();
+        return -1;
+    }
+
+    int contentLen = http.getSize();
+    if (contentLen <= 0 || contentLen > maxLen) {
+        http.end();
+        return -1;
+    }
+
+    WiFiClient* stream = http.getStreamPtr();
+    int totalRead = 0;
+    while (totalRead < contentLen) {
+        int avail = stream->available();
+        if (avail > 0) {
+            int toRead = min(avail, contentLen - totalRead);
+            int bytesRead = stream->readBytes(buf + totalRead, toRead);
+            totalRead += bytesRead;
+        } else {
+            delay(1);
+        }
+    }
+
+    http.end();
+    return totalRead;
+}
