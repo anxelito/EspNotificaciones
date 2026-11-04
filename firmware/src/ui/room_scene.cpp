@@ -261,7 +261,7 @@ void drawSceneAnim(uint32_t now) {
         }
     } else if (!lookNight) {                                       // butterfly
         float u = (float)(now % 9000) / 9000.0f;
-        int bx = AX + 14 + (int)lroundf((AW - 30) * (0.5f + 0.5f * sinf(u * 2 * PI_F)));
+        int bx = AX + 12 + (int)lroundf((AW - 66) * (0.5f + 0.5f * sinf(u * 2 * PI_F)));   // left of the sun
         int by = AY + 30 + (int)lroundf(10 * sinf(u * 6 * PI_F));
         int flap = ((now / 120) % 2) ? 4 : 2;
         g.fillEllipse(bx - 3 - ox, by - oy, 3, flap, C_WING);
