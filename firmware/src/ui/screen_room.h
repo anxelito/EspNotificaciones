@@ -9,7 +9,7 @@
 #define ROOM_STRIP_Y   184
 #define ROOM_STRIP_END (SCREEN_H - 14)                        // page dots start
 #define ROOM_CAT_X     ((SCREEN_W - CAT_W) / 2)               // 110
-#define ROOM_CAT_Y     86                                     // paws on the floor (y 170)
+#define ROOM_CAT_Y     88                                     // below the clock info line
 
 // Bottom strip; repaints only the columns whose text/colour changed.
 void drawRoomStrip(const RoomReading& r, bool fresh);

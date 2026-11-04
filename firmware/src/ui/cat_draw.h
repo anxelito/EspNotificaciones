@@ -6,7 +6,7 @@
 #include "../logic/room.h"
 
 #define CAT_W 100
-#define CAT_H 90
+#define CAT_H 94
 
 struct CatPose {
     CatMood   mood;
@@ -24,7 +24,7 @@ struct CatPose {
     bool      envelope = false;  // holding a letter (new task just arrived)
 };
 
-// Creates the CAT_W x CAT_H 16-bit sprite once (~18 KB). If allocation fails,
+// Creates the CAT_W x CAT_H 16-bit sprite once (~19 KB). If allocation fails,
 // catDraw falls back to drawing straight onto tft (may flicker). Returns
 // true if the sprite exists.
 bool catDrawInit();

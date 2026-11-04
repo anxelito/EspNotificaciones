@@ -72,6 +72,5 @@ void drawRoomStrip(const RoomReading& r, bool fresh) {
 void drawRoomScreen() {
     drawSceneLower(tft, 0, 0);
     tft.fillRect(0, ROOM_STRIP_Y, SCREEN_W, ROOM_STRIP_END - ROOM_STRIP_Y, C_BG);
-    drawWindowFrame();
     stripValid = false;
 }

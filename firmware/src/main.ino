@@ -67,6 +67,7 @@ static bool       headerDirty     = true;
 static ClockKey   drawnClock;
 static uint32_t   lastCatFrame    = 0;
 static uint32_t   lastWindowFrame = 0;
+static int        drawnLook       = -1;  // night*8 + comfort of the static scene
 static uint32_t   lastPulse       = 0;
 static int        drawnBacklight  = -1;
 static TaskItem   drawnTasks[MAX_TASKS];
@@ -133,6 +134,8 @@ static void buildScene(SceneInfo& s, bool timeKnown, int hour, int minute) {
     s.weatherOk   = snap.weather.ok;
     s.weatherCode = snap.weather.code;
     s.outTemp     = snap.weather.temp;
+    s.night       = timeKnown && (hour < 7 || hour >= 20);
+    s.comfort     = roomIsFresh(room, millis()) ? classifyTemp(room.tempC) : Comfort::UNKNOWN;
 }
 
 static void buildClockKey(ClockKey& k, const SceneInfo& s) {
@@ -184,9 +187,9 @@ static void checkNewTask(uint32_t now) {
     if (maxId > maxTaskIdSeen) maxTaskIdSeen = maxId;
 }
 
-// Cat may roam horizontally across the room, stopping before the plant.
-static const int CAT_MIN_X = MARGIN;
-static const int CAT_MAX_X = 186;
+// Robot roams horizontally, staying clear of the control panel.
+static const int CAT_MIN_X = ROOM_BOT_MIN_X;
+static const int CAT_MAX_X = ROOM_BOT_MAX_X;
 
 // fullRedraw: the room was just painted, so no trail needs erasing.
 static void drawCatFrame(uint32_t now, bool fullRedraw) {
@@ -260,12 +263,15 @@ static void render(uint32_t now, bool timeKnown, int hour, int minute, bool newA
             buildScene(sc, timeKnown, hour, minute);
             ClockKey ck;
             buildClockKey(ck, sc);
-            if (screenNew) {
+            int look = (sc.night ? 8 : 0) + (int)sc.comfort;
+            if (screenNew || look != drawnLook) {      // whole room (rare)
+                sceneSetLook(sc.night, sc.comfort);
+                drawnLook = look;
                 drawRoomScreen();                      // static room, invalidates strip
                 drawRoomStrip(room, fresh);
                 drawRoomClock(sc);
                 drawnClock = ck;
-                drawWindow(now, sc);
+                drawSceneAnim(now);
                 lastWindowFrame = now;
                 drawCatFrame(now, true);
                 lastCatFrame = now;
@@ -275,7 +281,7 @@ static void render(uint32_t now, bool timeKnown, int hour, int minute, bool newA
                     drawnClock = ck;
                 }
                 if ((now - lastWindowFrame) >= WINDOW_FRAME_MS) {
-                    drawWindow(now, sc);
+                    drawSceneAnim(now);
                     lastWindowFrame = now;
                 }
                 if ((now - lastCatFrame) >= CAT_FRAME_MS) {
@@ -336,7 +342,7 @@ void setup() {
     // Cat sprite (~18 KB) first, before the worker and artwork buffers.
     uint32_t heapBefore = ESP.getFreeHeap();
     bool sprOk = catDrawInit();
-    sceneInit();                         // window sprite (~7 KB)
+    sceneInit();
     Serial.printf("[boot] cat sprite %s, heap %u -> %u B free (expect >= 40 KB)\n",
                   sprOk ? "OK" : "FAILED", (unsigned)heapBefore,
                   (unsigned)ESP.getFreeHeap());
