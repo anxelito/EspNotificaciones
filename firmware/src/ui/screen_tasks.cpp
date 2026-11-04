@@ -6,10 +6,11 @@
 #include "text_fit.h"
 #include "../display.h"
 
-// Text in FONT_BODY (wrapped, up to TEXT_LINES lines), time below in FONT_SMALL.
-static const int TEXT_LINE  = 22;
+// Text in FONT_TITLE (wrapped, up to TEXT_LINES lines), time below in FONT_SMALL.
+static const UiFont TEXT_FONT = UiFont::TITLE;
+static const int TEXT_LINE  = 28;
 static const int TEXT_LINES = 2;
-static const int PAD_T      = 5;
+static const int PAD_T      = 4;
 static const int TIME_H     = 18;
 static const int CARD_GAP   = 5;
 static const int BAR_Y      = HEADER_H + 1;    // progress bar under the header
@@ -36,7 +37,7 @@ static int textMaxPx(bool urgent) {
 }
 
 static int cardHeight(const TaskItem& t, bool urgent) {
-    int lines = wrapLineCount(t.text, textMaxPx(urgent), UiFont::BODY, TEXT_LINES);
+    int lines = wrapLineCount(t.text, textMaxPx(urgent), TEXT_FONT, TEXT_LINES);
     if (lines < 1) lines = 1;
     return PAD_T + lines * TEXT_LINE + TIME_H + 4;
 }
@@ -46,10 +47,10 @@ static void drawCard(int y, int h, const TaskItem& t, bool done, bool urgent) {
 
     uint16_t dotCol  = done ? C_MUTED : (urgent ? C_URGENT : C_OK);
     uint16_t textCol = done ? C_MUTED : C_TEXT;
-    tft.fillCircle(DOT_X, y + h / 2, 5, dotCol);
+    tft.fillCircle(DOT_X, y + h / 2, 6, dotCol);
     if (urgent && pulseN < MAX_TASKS) pulseY[pulseN++] = y + h / 2;
 
-    int lines = drawWrapped(t.text, TEXT_X, y + PAD_T, textMaxPx(urgent), UiFont::BODY,
+    int lines = drawWrapped(t.text, TEXT_X, y + PAD_T, textMaxPx(urgent), TEXT_FONT,
                             TEXT_LINE, TEXT_LINES, textCol, C_CARD, done);
     if (lines < 1) lines = 1;
     drawText(t.time_display, TEXT_X, y + PAD_T + lines * TEXT_LINE, UiFont::SMALL,
@@ -113,9 +114,9 @@ void drawTasksPulse(uint32_t nowMs) {
     if (pulseN == 0) return;
     float s = 0.5f + 0.5f * sinf((float)(nowMs % 1400) * (2.0f * 3.14159265f / 1400.0f));
     uint16_t col = mix565(C_URGENT, C_URGENT_BG, (uint8_t)(110 + 145 * s));
-    int r = 4 + (s > 0.5f ? 1 : 0);
+    int r = 5 + (s > 0.5f ? 1 : 0);
     for (int i = 0; i < pulseN; i++) {
-        tft.fillCircle(DOT_X, pulseY[i], 6, C_CARD);
+        tft.fillCircle(DOT_X, pulseY[i], 7, C_CARD);
         tft.fillCircle(DOT_X, pulseY[i], r, col);
     }
 }
