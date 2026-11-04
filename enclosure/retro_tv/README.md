@@ -25,8 +25,22 @@ Las ST7789 de 2.4" cambian según el fabricante. Comprueba con un calibre:
 | `TTP_W`, `TTP_H` | placa del TTP223 | 15 × 11 |
 | `DHT_W`, `DHT_T` | cuerpo azul del DHT11: ancho y grosor | 12 × 5.5 |
 | `ESP_L` | largo del ESP32, con el conector micro-USB incluido | 55 |
+| `RAIL_OFF` | dónde van los raíles del ESP32: entre sus dos filas de pines | 8 |
 
 Muchas placas tienen el cristal desplazado unos milímetros hacia el lado contrario a los pines. Mídelo y ponlo en `WIN_OFF_X`. Es positivo si el cristal está a la derecha.
+
+## Comprobar que todo cabe
+`fit_check.py` reconstruye en 3D la caja con las mismas medidas del script. Mete dentro la pantalla, el ESP32, el DHT11, el TTP223, las clavijas dupont y el cable USB, y avisa de cualquier choque:
+
+```bash
+pip install manifold3d
+python enclosure/retro_tv/fit_check.py                  # cables dupont, pines de la pantalla a la derecha
+python enclosure/retro_tv/fit_check.py --header left    # pines de la pantalla a la izquierda
+python enclosure/retro_tv/fit_check.py --solder         # cables soldados
+python enclosure/retro_tv/fit_check.py --narrow         # ESP32 estrecho (filas a 22.86 mm)
+```
+
+Si cambias alguna medida, vuelve a ejecutarlo antes de imprimir.
 
 ## Exportar e imprimir (sin soportes)
 El script deja todas las piezas **tumbadas en la cama (Z = 0) ya en su posición de impresión**. Ocupan unos 195 × 165 mm. Para ver la tele montada, suprime los últimos pasos **Mover** de la línea de tiempo, o pon `PRINT_LAYOUT = False`.
@@ -46,7 +60,7 @@ PLA o PETG. Tamaño del cuerpo: 112 × 78 × 72 mm.
 1. **Pantalla:** 4 tornillos **M2 × 6** en los postes de delante. Comprueba que la imagen queda centrada en la ventana.
 2. **Botón táctil (TTP223):** mételo en el hueco rectangular que hay justo detrás de la rueda de arriba, con la cara del pad (la que no lleva componentes) contra la pared. La pared ahí mide 1.2 mm, así que el plástico no se nota: **tocar la rueda cambia de pantalla**. Sujétalo con cinta de doble cara fina, sin aire entre el pad y la pared. Si no responde bien, baja `TOUCH_WALL` a 1.0.
 3. **Sensor de temperatura (DHT11):** deslízalo desde atrás por la guía de la pared izquierda, con la rejilla del sensor mirando a la rejilla de la caja, hasta que toque el tope. Las pestañas lo sujetan sin pegamento. Queda en el lado contrario al ESP32 para que mida el aire de la habitación y no el calor de la placa.
-4. **ESP32:** apóyalo sobre los dos raíles del suelo, con los pines hacia abajo y el micro-USB hacia atrás, y empújalo hacia delante hasta el tope. Así el conector queda justo detrás del agujero de la tapa. Una gota de cola caliente basta.
+4. **ESP32:** apóyalo sobre los dos raíles del suelo, con los pines hacia abajo y el micro-USB hacia atrás. Los raíles quedan entre las dos filas de pines y miden 21 mm de alto, así que caben las clavijas dupont por debajo. Empújalo hacia delante hasta el tope del raíl derecho. Así el conector queda justo detrás del agujero de la tapa. Una gota de cola caliente basta.
 5. **Antena y patas:** encájalas arriba y abajo; una gota de pegamento si quedan sueltas.
 6. **Tapa:** 4 tornillos **M3 × 8** autorroscantes en los postes de las esquinas.
 7. **Alimentación:** enchufa el cable micro-USB por el hueco de la tapa trasera, con la tapa ya cerrada. El ESP32 alimenta la pantalla, el TTP223 y el DHT11, así que no hace falta otro cable.
