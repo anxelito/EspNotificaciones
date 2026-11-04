@@ -25,6 +25,7 @@ static TaskItem    w_fetch[MAX_TASKS];
 static NowPlaying  w_np;
 static char        w_songKey[sizeof(w_np.title) + sizeof(w_np.artist) + 2];
 static uint8_t     w_dl[MAX_ARTWORK_BYTES];             // download buffer
+static int         w_npFails = 0;                       // consecutive NP poll failures
 
 static void publishSnapshot() {
     xSemaphoreTake(s_mutex, portMAX_DELAY);
@@ -68,6 +69,7 @@ static bool pollTasks() {
 static bool pollNowPlaying() {
     memset(&w_np, 0, sizeof(w_np));
     bool ok = fetchNowPlaying(&w_np);
+    if (ok) w_npFails = 0;
     if (ok && w_np.is_playing) {
         char key[sizeof(w_songKey)];
         snprintf(key, sizeof(key), "%s|%s", w_np.title, w_np.artist);
@@ -80,8 +82,14 @@ static bool pollNowPlaying() {
         w_snap.np      = w_np;
         return songChanged;
     }
-    // Nothing playing (or poll failed): forget the song so the next play —
-    // even of the same track — counts as a change and refreshes the artwork.
+    if (!ok) {
+        // Transient failure (HTTP error / timeout / bad JSON): keep the last
+        // state and song key; give up only after NOWPLAYING_MAX_FAILS in a row.
+        if (w_npFails < NOWPLAYING_MAX_FAILS) w_npFails++;
+        if (w_npFails < NOWPLAYING_MAX_FAILS) return false;
+    }
+    // Confirmed not playing (or too many failures): forget the song so the next
+    // play — even of the same track — counts as a change and refreshes artwork.
     w_snap.playing = false;
     w_songKey[0]   = '\0';
     return false;
@@ -110,6 +118,7 @@ static void workerTask(void*) {
                 w_snap.online  = false;
                 w_snap.playing = false;
                 w_songKey[0]   = '\0';
+                w_npFails      = 0;
                 publishSnapshot();
             }
             wasUp = false;
