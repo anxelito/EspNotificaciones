@@ -48,7 +48,7 @@ static void drawLabel(int col, const char* label) {
 void drawRoomStrip(const RoomReading& r, bool fresh) {
     const bool haveT = fresh && r.everOk && !isnan(r.tempC);
     const bool haveH = fresh && r.everOk && !isnan(r.humidity);
-    const Comfort comfort = haveT ? classifyTemp(r.tempC) : Comfort::UNKNOWN;
+    const Comfort comfort = haveT ? classifyTemp((float)lroundf(r.tempC)) : Comfort::UNKNOWN;
 
     Shown want[3];
     if (haveT) snprintf(want[0].text, sizeof(want[0].text), "%d", (int)lroundf(r.tempC));

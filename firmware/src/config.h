@@ -8,6 +8,7 @@
 // Now Playing
 #define NOWPLAYING_POLL_MS  3000UL    // poll Spotify every 3s
 #define NOWPLAYING_MAX_FAILS 3        // consecutive failed polls before "not playing"
+#define TASKS_MAX_FAILS     3         // consecutive failed task fetches before OFFLINE
 #define ARTWORK_SIZE        64        // 64x64 px from Spotify CDN
 #define MAX_ARTWORK_BYTES   8192      // max JPEG buffer in RAM
 

@@ -2,6 +2,7 @@
 #include "screen_music.h"
 #include "theme.h"
 #include "../display.h"
+#include "text_fit.h"
 
 const int MUSIC_ART_X = MARGIN + 12;
 const int MUSIC_ART_Y = HEADER_H + 8 + 12;
@@ -19,22 +20,6 @@ static const int BAR_W_PX = CARD_W - 24;
 static const int BAR_H = 5;
 static const int BAR_Y = CARD_Y + 116;
 static const int TIME_Y = BAR_Y + BAR_H + 6;
-
-// Truncate to maxPx wide in the given font, appending "~". Never splits a
-// UTF-8 sequence.
-static void fitText(const char* src, char* out, size_t outLen, int maxPx, int font) {
-    strlcpy(out, src, outLen);
-    if (tft.textWidth(out, font) <= maxPx) return;
-    size_t n = strlen(out);
-    while (n > 1) {
-        n--;
-        while (n > 1 && (((uint8_t)out[n]) & 0xC0) == 0x80) n--;
-        out[n] = '\0';
-        char tmp[72];
-        snprintf(tmp, sizeof(tmp), "%s~", out);
-        if (tft.textWidth(tmp, font) <= maxPx) { strlcpy(out, tmp, outLen); return; }
-    }
-}
 
 static void fmtMs(int ms, char* out, size_t len) {
     if (ms < 0) ms = 0;

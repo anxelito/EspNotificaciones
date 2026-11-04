@@ -75,7 +75,7 @@ void drawHeader(const HeaderInfo& h) {
     if (have) {
         snprintf(tb, sizeof(tb), "%d", (int)lroundf(h.room->tempC));
         snprintf(hb, sizeof(hb), "%d%%", (int)lroundf(h.room->humidity));
-        tcol = comfortColor(classifyTemp(h.room->tempC));
+        tcol = comfortColor(classifyTemp((float)lroundf(h.room->tempC)));
     } else {
         strlcpy(tb, "--", sizeof(tb));
         strlcpy(hb, "--%", sizeof(hb));

@@ -2,25 +2,13 @@
 #include "screen_tasks.h"
 #include "theme.h"
 #include "../display.h"
+#include "text_fit.h"
 
 static const int CARD_H   = 34;
 static const int CARD_GAP = 5;
 static const int BODY_Y   = HEADER_H + 4;
 static const int BODY_END = SCREEN_H - 16;   // leave the page-dots strip
 static const int MAX_CARDS_FULL = (BODY_END - BODY_Y + CARD_GAP) / (CARD_H + CARD_GAP);
-
-// Truncate to maxPx wide in font 2, appending "~".
-static void fitText(const char* src, char* out, size_t outLen, int maxPx) {
-    strlcpy(out, src, outLen);
-    if (tft.textWidth(out, 2) <= maxPx) return;
-    size_t n = strlen(out);
-    while (n > 1) {
-        out[--n] = '\0';
-        char tmp[72];
-        snprintf(tmp, sizeof(tmp), "%s~", out);
-        if (tft.textWidth(tmp, 2) <= maxPx) { strlcpy(out, tmp, outLen); return; }
-    }
-}
 
 static void drawCard(int y, const TaskItem& t) {
     bool done   = strcmp(t.status, "done") == 0;
@@ -38,7 +26,7 @@ static void drawCard(int y, const TaskItem& t) {
     int maxPx = w - 26 - 8 - (chipW ? chipW + 6 : 0);
 
     char txt[72];
-    fitText(t.text, txt, sizeof(txt), maxPx);
+    fitText(t.text, txt, sizeof(txt), maxPx, 2);
     tft.setTextColor(textCol, C_CARD);
     tft.drawString(txt, tx, y + 3, 2);
     if (done) {   // strike-through

@@ -113,7 +113,7 @@ static void drawCatFrame(uint32_t now) {
     p.humid     = roomIsFresh(room, now) ? classifyHumidity(room.humidity) : HumidMood::UNKNOWN;
     uint16_t body = comfortColor(roomIsFresh(room, now) ? classifyTemp(room.tempC)
                                                          : Comfort::UNKNOWN);
-    p.body      = catIsAsleep(cat) ? darken565(body) : body;
+    p.body      = body;                  // catDraw darkens when SLEEPING
     p.nowMs     = now;
     p.moodSince = cat.since;
     catDraw(p, ROOM_CAT_X, ROOM_CAT_Y);

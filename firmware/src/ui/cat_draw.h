@@ -11,7 +11,7 @@ struct CatPose {
     CatMood   mood;
     bool      blink;      // catBlinking(state, now)
     HumidMood humid;      // sweat drop (HUMID) / open mouth + tongue (DRY)
-    uint16_t  body;       // RGB565 body colour (comfortColor); darkened when SLEEPING
+    uint16_t  body;       // RGB565 body colour (comfortColor); raw colour; catDraw darkens it when SLEEPING
     uint32_t  nowMs;      // drives Zzz drift, breathing, ear twitch
     uint32_t  moodSince;  // CatState.since: start of the PETTED hop (extension)
 };

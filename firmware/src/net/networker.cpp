@@ -25,6 +25,7 @@ static TaskItem    w_fetch[MAX_TASKS];
 static NowPlaying  w_np;
 static char        w_songKey[sizeof(w_np.title) + sizeof(w_np.artist) + 2];
 static uint8_t     w_dl[MAX_ARTWORK_BYTES];             // download buffer
+static int         w_taskFails = 0;                     // consecutive task fetch failures
 static int         w_npFails = 0;                       // consecutive NP poll failures
 
 static void publishSnapshot() {
@@ -46,10 +47,13 @@ static bool pollTasks() {
     memset(w_fetch, 0, sizeof(w_fetch));       // zeroed so memcmp is meaningful
     int n = fetchTasks(w_fetch);
     if (n < 0) {
+        if (w_taskFails < TASKS_MAX_FAILS) w_taskFails++;
+        if (w_taskFails < TASKS_MAX_FAILS) return false;   // transient: stay online
         if (!w_snap.online) return false;
         w_snap.online = false;                 // keep last good tasks (cache)
         return true;
     }
+    w_taskFails = 0;
     sortTasks(w_fetch, n);
     bool changed = (n != w_snap.taskCount) ||
                    memcmp(w_fetch, w_snap.tasks, sizeof(w_fetch)) != 0;
@@ -119,6 +123,7 @@ static void workerTask(void*) {
                 w_snap.playing = false;
                 w_songKey[0]   = '\0';
                 w_npFails      = 0;
+                w_taskFails    = 0;
                 publishSnapshot();
             }
             wasUp = false;
