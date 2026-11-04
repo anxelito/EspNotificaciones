@@ -4,16 +4,111 @@
 #include <string.h>
 #include "../display.h"
 
+static const char ELLIPSIS[] = "...";
+static const size_t TEXT_BUF_MAX = 96;
+
+static bool isCont(char c) { return (((uint8_t)c) & 0xC0) == 0x80; }
+
+// Width of the first n bytes of s.
+static int prefixWidth(const char* s, size_t n, int font) {
+    char tmp[TEXT_BUF_MAX];
+    if (n >= sizeof(tmp)) n = sizeof(tmp) - 1;
+    memcpy(tmp, s, n);
+    tmp[n] = '\0';
+    return tft.textWidth(tmp, font);
+}
+
 void fitText(const char* src, char* out, size_t outLen, int maxPx, int font) {
     strlcpy(out, src, outLen);
     if (tft.textWidth(out, font) <= maxPx) return;
     size_t n = strlen(out);
     while (n > 1) {
         n--;
-        while (n > 1 && (((uint8_t)out[n]) & 0xC0) == 0x80) n--;
+        while (n > 1 && isCont(out[n])) n--;
         out[n] = '\0';
-        char tmp[72];
-        snprintf(tmp, sizeof(tmp), "%s~", out);
+        char tmp[TEXT_BUF_MAX];
+        snprintf(tmp, sizeof(tmp), "%s%s", out, ELLIPSIS);
         if (tft.textWidth(tmp, font) <= maxPx) { strlcpy(out, tmp, outLen); return; }
     }
+}
+
+// Bytes of s (no leading spaces) that go on one line: the longest prefix
+// that fits, cut back to the last space when a word would be split.
+static size_t lineTake(const char* s, int maxPx, int font) {
+    size_t len = strlen(s), best = 0, lastSpace = 0;
+    for (size_t i = 1; i <= len && i < TEXT_BUF_MAX; i++) {
+        if (i < len && isCont(s[i])) continue;      // keep UTF-8 sequences whole
+        if (prefixWidth(s, i, font) > maxPx) break;
+        best = i;
+        if (i < len && s[i] == ' ') lastSpace = i;
+    }
+    if (best == 0) {                                // a single glyph wider than the line
+        best = 1;
+        while (best < len && isCont(s[best])) best++;
+    }
+    if (best < len && s[best] != ' ' && lastSpace > 0) return lastSpace;
+    return best;
+}
+
+static const char* skipSpaces(const char* s) {
+    while (*s == ' ') s++;
+    return s;
+}
+
+// Builds line number `idx` of the wrap into out; returns pointer past it.
+static const char* buildLine(const char* s, int maxPx, int font, bool last, char* out) {
+    size_t take = lineTake(s, maxPx, font);
+    bool more = *skipSpaces(s + take) != '\0';
+    if (last && more) {
+        // Last allowed line and text remains: as much as fits + "...".
+        size_t n = strlen(s);
+        if (n > TEXT_BUF_MAX - 4) n = TEXT_BUF_MAX - 4;
+        while (n > 0) {
+            while (n > 0 && isCont(s[n])) n--;
+            size_t m = n;
+            while (m > 0 && s[m - 1] == ' ') m--;
+            memcpy(out, s, m);
+            strcpy(out + m, ELLIPSIS);
+            if (tft.textWidth(out, font) <= maxPx) return s + strlen(s);
+            if (n == 0) break;
+            n--;
+        }
+        strcpy(out, ELLIPSIS);
+        return s + strlen(s);
+    }
+    size_t m = take;
+    while (m > 0 && s[m - 1] == ' ') m--;
+    memcpy(out, s, m);
+    out[m] = '\0';
+    return s + take;
+}
+
+int wrapLineCount(const char* src, int maxPx, int font, int maxLines) {
+    char line[TEXT_BUF_MAX];
+    int lines = 0;
+    const char* s = skipSpaces(src);
+    while (*s && lines < maxLines) {
+        s = skipSpaces(buildLine(s, maxPx, font, lines == maxLines - 1, line));
+        lines++;
+    }
+    return lines;
+}
+
+int drawWrapped(const char* src, int x, int y, int maxPx, int font, int lineH,
+                int maxLines, uint16_t fg, uint16_t bg, bool strike) {
+    char line[TEXT_BUF_MAX];
+    int lines = 0;
+    const char* s = skipSpaces(src);
+    tft.setTextColor(fg, bg);
+    while (*s && lines < maxLines) {
+        s = skipSpaces(buildLine(s, maxPx, font, lines == maxLines - 1, line));
+        int ly = y + lines * lineH;
+        tft.drawString(line, x, ly, font);
+        if (strike) {
+            int fh = tft.fontHeight(font);
+            tft.drawFastHLine(x, ly + fh / 2, tft.textWidth(line, font), fg);
+        }
+        lines++;
+    }
+    return lines;
 }

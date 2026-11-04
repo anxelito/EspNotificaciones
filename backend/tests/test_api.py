@@ -127,3 +127,11 @@ async def test_nowplaying_text_is_ascii(client):
          patch("main.lastfm.get_now_playing", AsyncMock(return_value=lf)):
         np = (await client.get("/nowplaying", headers=KEY)).json()
     assert np["title"] == "Cancion - nu" and np["artist"] == "cero"
+
+
+@pytest.mark.asyncio
+async def test_tasks_text_is_ascii(client):
+    tasks = [Task(3, "Llamar a Lucía mañana", "normal", "pending", datetime.now().isoformat(), "")]
+    with patch("main.get_all_tasks", AsyncMock(return_value=tasks)):
+        r = await client.get("/tasks", headers=KEY)
+    assert r.json()[0]["text"] == "Llamar a Lucia manana"

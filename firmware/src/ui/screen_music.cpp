@@ -63,18 +63,26 @@ void drawMusicScreen(const NowPlaying& np, const uint8_t* art, int artLen) {
     tft.fillRect(MUSIC_ART_X, MUSIC_ART_Y, ARTWORK_SIZE, ARTWORK_SIZE, C_DOT_OFF);
     if (art && artLen > 0) renderArtwork(art, artLen, MUSIC_ART_X, MUSIC_ART_Y);
 
-    char buf[72];
-    fitText(np.title, buf, sizeof(buf), TEXT_W, 4);
-    tft.setTextColor(C_TEXT, C_CARD);
-    tft.drawString(buf, TEXT_X, MUSIC_ART_Y + 2, 4);
+    // Wrapped text column right of the artwork. Without a progress bar
+    // (no timing from the source) the column may use the whole card height.
+    const int LINE4 = 24, LINE2 = 17, GAP = 4;
+    int bottom = (np.duration_ms > 0) ? BAR_Y - 6 : CARD_Y + CARD_H - 8;
+    int y = MUSIC_ART_Y;
+    auto linesLeft = [&](int lineH, int cap) {
+        int n = (bottom - y) / lineH;
+        return n < cap ? n : cap;
+    };
 
-    fitText(np.artist, buf, sizeof(buf), TEXT_W, 2);
-    tft.setTextColor(C_OK, C_CARD);
-    tft.drawString(buf, TEXT_X, MUSIC_ART_Y + 32, 2);
+    int n = linesLeft(LINE4, 2);
+    if (n > 0) y += drawWrapped(np.title, TEXT_X, y, TEXT_W, 4, LINE4, n, C_TEXT, C_CARD) * LINE4 + GAP;
 
-    fitText(np.album, buf, sizeof(buf), TEXT_W, 2);
-    tft.setTextColor(C_MUTED, C_CARD);
-    tft.drawString(buf, TEXT_X, MUSIC_ART_Y + 50, 2);
+    n = linesLeft(LINE4, 2);
+    if (n > 0 && np.artist[0])
+        y += drawWrapped(np.artist, TEXT_X, y, TEXT_W, 4, LINE4, n, C_OK, C_CARD) * LINE4 + GAP;
+
+    n = linesLeft(LINE2, 2);
+    if (n > 0 && np.album[0] && strcmp(np.album, np.title) != 0)
+        drawWrapped(np.album, TEXT_X, y, TEXT_W, 2, LINE2, n, C_MUTED, C_CARD);
 
     drawMusicProgress(np);
 }

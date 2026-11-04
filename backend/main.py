@@ -49,7 +49,12 @@ async def health():
 @app.get("/tasks")
 async def tasks_endpoint(_=Depends(verify_api_key)):
     tasks = await get_all_tasks()
-    return [t.to_dict() for t in tasks]
+    out = []
+    for t in tasks:
+        d = t.to_dict()
+        d["text"] = _ascii_fold(d.get("text") or "")
+        out.append(d)
+    return out
 
 
 @app.get("/nowplaying")
