@@ -41,3 +41,13 @@ inline const char* comfortWord(Comfort c) {
         default:            return "--";
     }
 }
+
+// Mix two RGB565 colours: alpha 255 -> a, 0 -> b (per channel, integer).
+constexpr uint16_t mix565(uint16_t a, uint16_t b, uint8_t alpha) {
+    return (uint16_t)(
+        ((((a >> 11) & 0x1F) * alpha + ((b >> 11) & 0x1F) * (255 - alpha)) / 255) << 11 |
+        ((((a >> 5) & 0x3F) * alpha + ((b >> 5) & 0x3F) * (255 - alpha)) / 255) << 5 |
+        (((a & 0x1F) * alpha + (b & 0x1F) * (255 - alpha)) / 255));
+}
+// ~50 % darker (used for the sleeping cat's body).
+constexpr uint16_t darken565(uint16_t c) { return mix565(c, 0x0000, 128); }

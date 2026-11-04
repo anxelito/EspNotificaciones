@@ -51,3 +51,4 @@
 #define PET_MS             2000UL
 #define BLINK_EVERY_MS     4000UL
 #define BLINK_LEN_MS       150UL
+#define CAT_FRAME_MS       80UL     // cat redraw cadence on Habitacion (~12 fps)
