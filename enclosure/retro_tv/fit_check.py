@@ -95,21 +95,6 @@ def enclosure():
             rails += box(x0, x1, esp_y0 - 6, esp_y0, WALL + RAIL_H, WALL + RAIL_H + g("ESP_STOP_H"))
     parts["raíles ESP32"] = rails
 
-    xi = -W / 2 + WALL
-    zc = g("SIDE_Z0") + (g("SIDE_SLOTS") - 1) * g("SIDE_W") * 2.4 / 2 + g("SIDE_W") / 2
-    gap = (g("DHT_W") + 2 * g("DHT_CLEAR")) / 2
-    depth = g("DHT_T") + g("DHT_CLEAR")
-    rt = g("DHT_RAIL_T")
-    yd0, yd1 = g("DHT_STOP_Y"), D - g("LIP_H") - 1.0
-    cradle = Manifold()
-    for sz in (-1, 1):
-        zlo, zhi = sorted((zc + sz * gap, zc + sz * (gap + rt)))
-        cradle += box(xi - 0.5, xi + depth + rt, yd0, yd1, zlo, zhi)
-        llo, lhi = sorted((zc + sz * (gap - g("DHT_LIP")), zc + sz * gap))
-        cradle += box(xi + depth, xi + depth + rt, yd0, yd1, llo, lhi)
-    wx = depth + rt + 0.5
-    cradle += box(xi - 0.5, xi + depth + rt, yd0 - wx * 0.5, yd0, zc - gap - rt, zc + gap + rt)  # wedge (approx.)
-    parts["guía DHT11"] = cradle
 
     # Lid: plate behind the body + locating lip inside it.
     LIP_H, LIP_T, CL = g("LIP_H"), g("LIP_T"), g("LIP_CLEAR")
@@ -119,6 +104,21 @@ def enclosure():
     plate = rrect_y(0, H / 2, W, H, R, D, D + g("LID_T"))
     hole = rrect_y(ESP_CX, g("USB_Z"), g("USB_W"), g("USB_H"), 1.5, D - 1, D + g("LID_T") + 1)
     parts["tapa"] = (plate + lip) - hole
+
+    # DHT11 module cradle on the lid's inner face (Y = D).
+    dep = g("DHTM_STACK") + g("DHTM_CLEAR")
+    gz = (g("DHTM_W") + 2 * g("DHTM_CLEAR")) / 2
+    rt, cz = g("DHTM_RAIL_T"), g("DHTM_CZ")
+    xs = g("DHTM_CX") - g("DHTM_L") / 2 - g("DHTM_CLEAR")
+    xe = g("DHTM_CX") + g("DHTM_L") / 2 - g("DHTM_PIN_END")
+    cr = Manifold()
+    for sz in (-1, 1):
+        zlo, zhi = sorted((cz + sz * gz, cz + sz * (gz + rt)))
+        cr += box(xs - rt, xe, D - dep - rt, D, zlo, zhi)
+        llo, lhi = sorted((cz + sz * (gz - g("DHTM_LIP")), cz + sz * gz))
+        cr += box(xs - rt, xe, D - dep - rt, D - dep, llo, lhi)
+    cr += box(xs - rt, xs, D - dep, D, cz - gz - rt, cz + gz + rt)
+    parts["guía DHT11 (tapa)"] = cr
     return parts
 
 
@@ -127,6 +127,7 @@ def enclosure():
 DUPONT = 14.0 + 3.0   # female dupont housing over the pin + the wire's bend
 
 
+PINS = "straight"   # DHT11 module pins: "straight" (into the box) or "angle" (along the PCB)
 ROWS = 25.4   # ESP32 header row spacing (some narrow boards: 22.86)
 
 
@@ -164,13 +165,19 @@ def components(solder, header_side):
     c["ESP32 (clavija USB)"] = box(ex - 3.5, ex + 3.5, ey1 - 5.0, ey1 + 1.5, uz - 1.25, uz + 1.25)
     c["cable USB (funda)"] = box(ex - 5.5, ex + 5.5, ey1 + 1.5, ey1 + 25, uz - 3.75, uz + 3.75)
 
-    # DHT11 bare body in its cradle (+ pins / wires going back).
-    xi = -W / 2 + WALL
-    zc = g("SIDE_Z0") + (g("SIDE_SLOTS") - 1) * g("SIDE_W") * 2.4 / 2 + g("SIDE_W") / 2
-    y0 = g("DHT_STOP_Y")
-    c["DHT11"] = box(xi + 0.1, xi + 0.1 + g("DHT_T"), y0 + 0.1, y0 + 15.5, zc - g("DHT_W") / 2, zc + g("DHT_W") / 2)
-    c["DHT11 (pines%s)" % ("" if solder else " + dupont")] = box(
-        xi + 1, xi + 3.5, y0 + 15.5, y0 + 15.5 + (4 if solder else DUPONT), zc - 4, zc + 4)
+    # DHT11 module in the lid cradle: sensor face on the lid, PCB behind it,
+    # 3 pins at the end: right-angle (along +X) or straight (into the box).
+    L, Wd, cz = g("DHTM_L"), g("DHTM_W"), g("DHTM_CZ")
+    x0 = g("DHTM_CX") - L / 2
+    c["DHT11 (sensor)"] = box(x0, x0 + 15.5, D - 5.5, D - 0.05, cz - 6, cz + 6)
+    c["DHT11 (placa)"] = box(x0, x0 + L, D - 7.1, D - 5.5, cz - Wd / 2, cz + Wd / 2)
+    reach = 2.5 + (4.0 if solder else DUPONT)
+    if PINS == "angle":
+        c["DHT11 (pines%s)" % ("" if solder else " + dupont")] = box(x0 + L - 3, x0 + L - 3 + reach + 3, D - 7.1 - 2.5, D - 5.5,
+                                                                    cz - 4, cz + 4)
+    else:
+        c["DHT11 (pines%s)" % ("" if solder else " + dupont")] = box(x0 + L - 3.5, x0 + L - 1, D - 7.1 - reach, D - 7.1,
+                                                                    cz - 4, cz + 4)
 
     # TTP223 in its pocket, components and wires behind.
     tx, tz = g("KNOB_X"), g("KNOB_TOUCH_Z")
@@ -184,11 +191,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--solder", action="store_true", help="wires soldered (no dupont connectors)")
     ap.add_argument("--margin", type=float, default=0.0, help="clearance (mm) required around each component")
+    ap.add_argument("--dht-pins", choices=["straight", "angle"], default="straight",
+                    help="DHT11 module pins: straight (into the box) or right-angle (along the PCB)")
     ap.add_argument("--narrow", action="store_true", help="narrow ESP32 board (rows 22.86 mm apart)")
     ap.add_argument("--header", choices=["left", "right"], default="right", help="side of the screen's pin header")
     a = ap.parse_args()
     enc = enclosure()
-    global PAD, ROWS
+    global PAD, ROWS, PINS
+    PINS = a.dht_pins
     if a.narrow:
         ROWS = 22.86
     PAD = a.margin
