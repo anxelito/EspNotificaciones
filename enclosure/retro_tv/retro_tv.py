@@ -87,6 +87,12 @@ TILT_DEG = 12.0                   # leans back so the screen faces you; 0 = upri
 LEG_TIP_R = 4.0                   # rounded foot tip (sits well at any tilt)
 LEG_INSET_X, LEG_INSET_Y = 20.0, 14.0
 FRONT_FILLET = 2.0
+
+# Layout: True = every piece lying on the print bed (Z = 0) in its print
+# orientation, ready to export; False = pieces next to the assembled TV.
+# The move is the last step in the timeline: suppress it to see the TV whole.
+PRINT_LAYOUT = True
+PRINT_GAP = 8.0                   # space between pieces on the bed
 # =============================================================================
 
 MM = 0.1  # Fusion's internal unit is cm
@@ -442,13 +448,63 @@ def build():
         except Exception:
             pass
 
+    if PRINT_LAYOUT:
+        print_layout(comp, [n for n, _ in specs])
+
     app.activeViewport.fit()
+
+
+def _move(comp, body, matrix):
+    mf = comp.features.moveFeatures
+    oc = adsk.core.ObjectCollection.create()
+    oc.add(body)
+    try:
+        inp = mf.createInput2(oc)
+        inp.defineAsFreeMove(matrix)
+    except AttributeError:                                 # older Fusion API
+        inp = mf.createInput(oc, matrix)
+    mf.add(inp)
+
+
+def _place(comp, name, angle_deg, x, y):
+    """Rotate body `name` about the X axis, then drop it on the bed with its
+    bounding-box corner at (x, y). Returns its footprint (w, d) in mm."""
+    body = comp.bRepBodies.itemByName(name)
+    if angle_deg:
+        m = adsk.core.Matrix3D.create()
+        m.setToRotation(math.radians(angle_deg), adsk.core.Vector3D.create(1, 0, 0),
+                        adsk.core.Point3D.create(0, 0, 0))
+        _move(comp, body, m)
+        body = comp.bRepBodies.itemByName(name)
+    bb = body.boundingBox
+    t = adsk.core.Matrix3D.create()
+    t.translation = adsk.core.Vector3D.create(x * MM - bb.minPoint.x, y * MM - bb.minPoint.y,
+                                              -bb.minPoint.z)
+    _move(comp, body, t)
+    return ((bb.maxPoint.x - bb.minPoint.x) / MM, (bb.maxPoint.y - bb.minPoint.y) / MM)
+
+
+def print_layout(comp, leg_names):
+    """Every piece in its support-free print orientation, lying on Z = 0:
+       body  -> front face down (rotate +90 about X: model Y becomes height)
+       lid   -> outer face down, lip up (rotate -90 about X)
+       antenna -> flat (+90 about X)
+       legs  -> upside down, peg on the bed (180 about X)."""
+    g = PRINT_GAP
+    bw, bd = _place(comp, "Cuerpo TV", 90, 0, 0)
+    _place(comp, "Tapa trasera", -90, 0, bd + g)
+    aw, ad = _place(comp, "Antena", 90, bw + g, 0)
+    for i, name in enumerate(leg_names):
+        _place(comp, name, 180, bw + g + i * (LEG_D + g), ad + g)
 
 
 def run(context):
     try:
         build()
+        extra = ("\nPiezas colocadas en posición de impresión (Z = 0).\n"
+                 "Para ver la tele montada, suprime los últimos 'Mover' de la línea de tiempo."
+                 if PRINT_LAYOUT else "")
         ui.messageBox("Mini TV creada: Cuerpo TV, Tapa trasera, Antena y 4 patas.\n"
-                      "Comprueba las medidas de tu pantalla en el script si algo no encaja.")
+                      "Comprueba las medidas de tu pantalla en el script si algo no encaja." + extra)
     except Exception:
         ui.messageBox("Error:\n{}".format(traceback.format_exc()))

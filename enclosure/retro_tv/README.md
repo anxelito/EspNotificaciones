@@ -29,7 +29,9 @@ Las ST7789 de 2.4" cambian según el fabricante. Comprueba con un calibre:
 Muchas placas tienen el cristal desplazado unos milímetros hacia el lado contrario a los pines. Mídelo y ponlo en `WIN_OFF_X`. Es positivo si el cristal está a la derecha.
 
 ## Exportar e imprimir (sin soportes)
-Clic derecho en cada cuerpo → **Guardar como malla** → STL.
+El script deja todas las piezas **tumbadas en la cama (Z = 0) ya en su posición de impresión**. Ocupan unos 195 × 165 mm. Para ver la tele montada, suprime los últimos pasos **Mover** de la línea de tiempo, o pon `PRINT_LAYOUT = False`.
+
+Para exportar todo de una vez: clic derecho en el componente raíz → **Guardar como malla** → STL o 3MF, y ábrelo en tu laminador. También puedes exportar cada cuerpo por separado.
 
 | Pieza | Orientación | Notas |
 |---|---|---|
