@@ -25,9 +25,6 @@
 #define SCREEN_W    320
 #define SCREEN_H    240
 #define HEADER_H     26
-#define TASK_H       38
-#define TASK_MARGIN   3
-#define BAR_W         3
 
 // Pins
 #define PIN_DHT        27

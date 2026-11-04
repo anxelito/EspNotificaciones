@@ -11,8 +11,5 @@ extern TFT_eSPI tft;
 void displayInit();
 void drawSplash(const String& msg);
 
-// Draws the Now Playing screen (artwork + song info)
-void drawNowPlaying(const NowPlaying& np, const String& time_str);
-
 // Downloads artwork JPEG into buffer, decodes and renders at (x,y)
 void renderArtwork(const uint8_t* jpegBuf, int jpegLen, int x, int y);

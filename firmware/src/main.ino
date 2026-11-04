@@ -1,7 +1,7 @@
 // firmware/src/main.ino
 // Core 1 (loop): UI only. All networking lives in the core-0 worker
 // (net/networker.*); loop() reads its published snapshot and never blocks on
-// HTTP. Old screens (redrawAll / drawNowPlaying) kept until the UI rewrite.
+// HTTP. Old screens (redrawAll) kept until the UI rewrite.
 #include "config.h"
 #include "display.h"
 #include "tasks.h"
@@ -11,6 +11,7 @@
 #include "ui/theme.h"
 #include "ui/chrome.h"
 #include "ui/screen_tasks.h"
+#include "ui/screen_music.h"
 #include <SPIFFS.h>
 #include <WiFi.h>
 
@@ -34,7 +35,7 @@ static void formatTime(char* out, size_t len) {
 
 static void drawArtworkIfCurrent() {
     if (artworkLen > 0 && artworkVersion == snap.songVersion) {
-        renderArtwork(artworkBuf, artworkLen, 20, HEADER_H + 30);
+        renderArtwork(artworkBuf, artworkLen, MUSIC_ART_X, MUSIC_ART_Y);
     }
 }
 
@@ -79,9 +80,25 @@ void loop() {
                            (snap.songVersion != shown.songVersion);
         bool npChanged   = memcmp(&snap.np, &shown.np, sizeof(snap.np)) != 0;
 
-        if (songChanged || npChanged || timeChanged || !drawnOnce) {
-            drawNowPlaying(snap.np, String(t));
-            drawArtworkIfCurrent();
+        if (songChanged || timeChanged || !drawnOnce) {
+            HeaderInfo hi = {};
+            hi.title = "SONANDO";
+            hi.online = snap.online;
+            hi.timeKnown = clockGetHM(&hi.hour, &hi.minute);
+            hi.playing = true;
+            static const RoomReading noRoom;   // sensors wired in Task 10
+            hi.room = &noRoom;
+            hi.roomFresh = false;
+            drawHeader(hi);
+        }
+        if (songChanged || !drawnOnce) {
+            bool artOk = artworkBuf && artworkLen > 0 && artworkVersion == snap.songVersion;
+            drawMusicScreen(snap.np, artOk ? artworkBuf : nullptr, artOk ? artworkLen : 0);
+            drawPageDots(2, 3);
+        } else if (npChanged) {
+            drawMusicProgress(snap.np);
+        }
+        if (songChanged || timeChanged || !drawnOnce) {
             currentScreen = SCREEN_NOW_PLAYING;
             strlcpy(shownTime, t, sizeof(shownTime));
             drawnOnce = true;
