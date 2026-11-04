@@ -23,7 +23,8 @@ Las ST7789 de 2.4" cambian según el fabricante. Comprueba con un calibre:
 | `WIN_W`, `WIN_H` | zona que se ve | 49.5 × 37.2 |
 | `WIN_OFF_X` | cuánto se desplaza la zona visible respecto al centro del PCB | 0 |
 | `TTP_W`, `TTP_H` | placa del TTP223 | 15 × 11 |
-| `DHT_W`, `DHT_T` | cuerpo azul del DHT11: ancho y grosor | 12 × 5.5 |
+| `DHTM_L`, `DHTM_W` | plaquita del DHT11: largo (pines en un extremo) y ancho | 28.5 × 12.5 |
+| `DHTM_STACK` | de la cara del sensor a la parte de atrás de la plaquita | 7.1 |
 | `ESP_L` | largo del ESP32, con el conector micro-USB incluido | 55 |
 | `RAIL_OFF` | dónde van los raíles del ESP32: entre sus dos filas de pines | 8 |
 
@@ -38,6 +39,7 @@ python enclosure/retro_tv/fit_check.py                  # cables dupont, pines d
 python enclosure/retro_tv/fit_check.py --header left    # pines de la pantalla a la izquierda
 python enclosure/retro_tv/fit_check.py --solder         # cables soldados
 python enclosure/retro_tv/fit_check.py --narrow         # ESP32 estrecho (filas a 22.86 mm)
+python enclosure/retro_tv/fit_check.py --dht-pins angle # DHT11 con pines en ángulo
 ```
 
 Si cambias alguna medida, vuelve a ejecutarlo antes de imprimir.
@@ -59,7 +61,12 @@ PLA o PETG. Tamaño del cuerpo: 112 × 78 × 72 mm.
 ## Montaje
 1. **Pantalla:** 4 tornillos **M2 × 6** en los postes de delante. Comprueba que la imagen queda centrada en la ventana.
 2. **Botón táctil (TTP223):** mételo en el hueco rectangular que hay justo detrás de la rueda de arriba, con la cara del pad (la que no lleva componentes) contra la pared. La pared ahí mide 1.2 mm, así que el plástico no se nota: **tocar la rueda cambia de pantalla**. Sujétalo con cinta de doble cara fina, sin aire entre el pad y la pared. Si no responde bien, baja `TOUCH_WALL` a 1.0.
-3. **Sensor de temperatura (DHT11):** deslízalo desde atrás por la guía de la pared izquierda, con la rejilla del sensor mirando a la rejilla de la caja, hasta que toque el tope. Las pestañas lo sujetan sin pegamento. Queda en el lado contrario al ESP32 para que mida el aire de la habitación y no el calor de la placa.
+3. **Sensor de temperatura (DHT11 en plaquita):** va en la guía de la cara interior de la tapa trasera, arriba a la izquierda, detrás de las rejillas.
+   - Mételo con la rejilla del sensor contra la tapa, entrando por el lado de los pines, hasta que toque el tope.
+   - Las pestañas lo sujetan sin pegamento.
+   - Vale tanto si tus pines son rectos como si van en ángulo.
+   - Queda lejos del ESP32, así mide el aire de la habitación y no el calor de la placa.
+   - Conecta sus cables antes de cerrar la tapa.
 4. **ESP32:** apóyalo sobre los dos raíles del suelo, con los pines hacia abajo y el micro-USB hacia atrás. Los raíles quedan entre las dos filas de pines y miden 21 mm de alto, así que caben las clavijas dupont por debajo. Empújalo hacia delante hasta el tope del raíl derecho. Así el conector queda justo detrás del agujero de la tapa. Una gota de cola caliente basta.
 5. **Antena y patas:** encájalas arriba y abajo; una gota de pegamento si quedan sueltas.
 6. **Tapa:** 4 tornillos **M3 × 8** autorroscantes en los postes de las esquinas.
