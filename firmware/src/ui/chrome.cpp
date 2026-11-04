@@ -51,21 +51,36 @@ void drawHeader(const HeaderInfo& h) {
     // Title (left)
     drawTitle(h.title ? h.title : "", MARGIN + 2, ty, C_MUTED);
 
-    // Centre: time or OFFLINE, note after it while playing
-    char buf[8];
-    const char* centre;
-    uint16_t centreCol;
+    // Centre: time or OFFLINE, note after it while playing.
+    // Time is drawn as "HH", ":", "MM" with COLON_PAD px either side of the
+    // colon, because font 2's colon glyph hugs the digits.
+    static const int COLON_PAD = 3;
+    int cw, cx;
     if (!h.online) {
-        centre = "OFFLINE"; centreCol = C_URGENT;
+        cw = tft.textWidth("OFFLINE", FONT);
+        cx = SCREEN_W / 2 - cw / 2 - (h.playing ? 6 : 0);
+        tft.setTextColor(C_URGENT, C_BG);
+        tft.drawString("OFFLINE", cx, ty, FONT);
     } else {
-        if (h.timeKnown) snprintf(buf, sizeof(buf), "%02d:%02d", h.hour, h.minute);
-        else             strlcpy(buf, "--:--", sizeof(buf));
-        centre = buf; centreCol = C_TIME;
+        char hh[4], mm[4];
+        if (h.timeKnown) {
+            snprintf(hh, sizeof(hh), "%02d", h.hour);
+            snprintf(mm, sizeof(mm), "%02d", h.minute);
+        } else {
+            strlcpy(hh, "--", sizeof(hh));
+            strlcpy(mm, "--", sizeof(mm));
+        }
+        int hw = tft.textWidth(hh, FONT);
+        int colw = tft.textWidth(":", FONT);
+        int mw = tft.textWidth(mm, FONT);
+        cw = hw + COLON_PAD + colw + COLON_PAD + mw;
+        cx = SCREEN_W / 2 - cw / 2 - (h.playing ? 6 : 0);
+        tft.setTextColor(C_TIME, C_BG);
+        int x = cx;
+        tft.drawString(hh, x, ty, FONT);  x += hw + COLON_PAD;
+        tft.drawString(":", x, ty, FONT); x += colw + COLON_PAD;
+        tft.drawString(mm, x, ty, FONT);
     }
-    int cw = tft.textWidth(centre, FONT);
-    int cx = SCREEN_W / 2 - cw / 2 - (h.playing ? 6 : 0);
-    tft.setTextColor(centreCol, C_BG);
-    tft.drawString(centre, cx, ty, FONT);
     if (h.playing) drawNote(cx + cw + 6, ty + 2, C_OK);
 
     // Right: "22° · 48%" or "--° · --%"

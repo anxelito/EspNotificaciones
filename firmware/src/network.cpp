@@ -62,6 +62,8 @@ int fetchTasks(TaskItem* tasks) {
 
     int code = http.GET();
     if (code != 200) {
+        Serial.printf("[net] tasks GET failed: %d (%s)\n", code,
+                      http.errorToString(code).c_str());
         http.end();
         return -1;
     }
@@ -70,7 +72,12 @@ int fetchTasks(TaskItem* tasks) {
     http.end();
 
     JsonDocument doc;
-    if (deserializeJson(doc, payload) != DeserializationError::Ok) return -1;
+    DeserializationError err = deserializeJson(doc, payload);
+    if (err != DeserializationError::Ok) {
+        Serial.printf("[net] tasks JSON error: %s (%u B)\n", err.c_str(),
+                      (unsigned)payload.length());
+        return -1;
+    }
 
     JsonArray arr = doc.as<JsonArray>();
     int count = 0;

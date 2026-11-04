@@ -17,7 +17,7 @@
 #define NET_WORKER_STACK    16384     // bytes (ESP-IDF stack depth unit = bytes)
 #define NET_WORKER_PRIO     1
 #define NET_LOOP_DELAY_MS   50
-#define HTTP_TIMEOUT_MS     3000      // connect / TLS handshake / read, each
+#define HTTP_TIMEOUT_MS     8000      // connect / TLS handshake / read, each (ESP32 TLS can take >3 s)
 #define WIFI_RETRY_MS       10000UL   // WiFi.reconnect() cadence while down
 
 // Display geometry (320x240 landscape)
