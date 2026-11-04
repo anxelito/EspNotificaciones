@@ -29,6 +29,13 @@ void test_cat_pet_night();
 void test_cat_no_blink_when_sleeping();
 void test_cat_blink_period();
 
+void test_behavior_starts_sitting();
+void test_behavior_acts_and_walks_in_bounds();
+void test_behavior_walk_reaches_target();
+void test_behavior_frozen_when_cannot_act();
+void test_behavior_phase_range();
+void test_behavior_millis_wrap();
+
 void setUp() {}
 void tearDown() {}
 
@@ -61,5 +68,11 @@ int main(int, char**) {
     RUN_TEST(test_cat_pet_night);
     RUN_TEST(test_cat_no_blink_when_sleeping);
     RUN_TEST(test_cat_blink_period);
+    RUN_TEST(test_behavior_starts_sitting);
+    RUN_TEST(test_behavior_acts_and_walks_in_bounds);
+    RUN_TEST(test_behavior_walk_reaches_target);
+    RUN_TEST(test_behavior_frozen_when_cannot_act);
+    RUN_TEST(test_behavior_phase_range);
+    RUN_TEST(test_behavior_millis_wrap);
     return UNITY_END();
 }

@@ -52,3 +52,13 @@
 #define BLINK_EVERY_MS     4000UL
 #define BLINK_LEN_MS       150UL
 #define CAT_FRAME_MS       80UL     // cat redraw cadence on Habitacion (~12 fps)
+// Idle behaviour (logic/cat_behavior): random act between rests
+#define CAT_REST_MIN_MS    2500UL
+#define CAT_REST_MAX_MS    7000UL
+#define CAT_WALK_PX_PER_S  28UL
+#define CAT_WALK_MIN_PX    30
+#define CAT_LOOK_MS        2200UL
+#define CAT_GROOM_MS       2600UL
+#define CAT_YAWN_MS        1600UL
+#define CAT_STRETCH_MS     1800UL
+#define CAT_HOP_MS         700UL

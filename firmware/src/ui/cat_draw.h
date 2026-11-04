@@ -2,6 +2,7 @@
 #pragma once
 #include <stdint.h>
 #include "../logic/cat_state.h"
+#include "../logic/cat_behavior.h"
 #include "../logic/room.h"
 
 #define CAT_W 100
@@ -14,6 +15,12 @@ struct CatPose {
     uint16_t  body;       // RGB565 body colour (comfortColor); raw colour; catDraw darkens it when SLEEPING
     uint32_t  nowMs;      // drives Zzz drift, breathing, ear twitch
     uint32_t  moodSince;  // CatState.since: start of the PETTED hop (extension)
+    // Idle behaviour (awake only; ignored while asleep)
+    CatAct    act      = CatAct::SIT;
+    float     actPhase = 0;   // behaviorPhase(), 0..1
+    int8_t    facing   = 1;   // -1 left, +1 right
+    int8_t    look     = 0;   // LOOK direction
+    Comfort   comfort  = Comfort::UNKNOWN;  // cold: shiver, hot: pant
 };
 
 // Creates the CAT_W x CAT_H 16-bit sprite once (~18 KB). If allocation fails,

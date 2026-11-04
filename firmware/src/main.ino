@@ -12,6 +12,7 @@
 #include "logic/gesture.h"
 #include "logic/ui_state.h"
 #include "logic/cat_state.h"
+#include "logic/cat_behavior.h"
 #include "hw/sensors.h"
 #include "hw/touch.h"
 #include "hw/backlight.h"
@@ -33,6 +34,8 @@ static RoomReading     room;
 static GestureDetector gesture;
 static UiState         ui;
 static CatState        cat;
+static CatBehavior     catBeh;
+static int             catDrawnX = ROOM_CAT_X;
 static NetSnapshot     snap;             // latest copy from the worker
 
 // --- what is currently on the glass -----------------------------------------
@@ -106,17 +109,36 @@ static bool pickUpArtwork() {
     return n > 0;
 }
 
-static void drawCatFrame(uint32_t now) {
+// Cat may roam horizontally across the room area (sprite left x range).
+static const int CAT_MIN_X = MARGIN;
+static const int CAT_MAX_X = SCREEN_W - MARGIN - CAT_W;
+
+// fullRedraw: body was just cleared, so no trail needs erasing.
+static void drawCatFrame(uint32_t now, bool fullRedraw) {
+    behaviorTick(catBeh, now, cat.mood == CatMood::IDLE, CAT_MIN_X, CAT_MAX_X);
+
     CatPose p;
     p.mood      = cat.mood;
     p.blink     = catBlinking(cat, now);
     p.humid     = roomIsFresh(room, now) ? classifyHumidity(room.humidity) : HumidMood::UNKNOWN;
-    uint16_t body = comfortColor(roomIsFresh(room, now) ? classifyTemp(room.tempC)
-                                                         : Comfort::UNKNOWN);
-    p.body      = body;                  // catDraw darkens when SLEEPING
+    Comfort comfort = roomIsFresh(room, now) ? classifyTemp(room.tempC) : Comfort::UNKNOWN;
+    p.body      = comfortColor(comfort);  // catDraw darkens when SLEEPING
     p.nowMs     = now;
     p.moodSince = cat.since;
-    catDraw(p, ROOM_CAT_X, ROOM_CAT_Y);
+    p.act       = catBeh.act;
+    p.actPhase  = behaviorPhase(catBeh, now);
+    p.facing    = catBeh.facing;
+    p.look      = catBeh.look;
+    p.comfort   = comfort;
+
+    // Moving sprite: erase the strip it just left (the sprite covers the rest).
+    int x = catBeh.x;
+    if (!fullRedraw && x != catDrawnX) {
+        if (x > catDrawnX) tft.fillRect(catDrawnX, ROOM_CAT_Y, x - catDrawnX, CAT_H, C_BG);
+        else               tft.fillRect(x + CAT_W, ROOM_CAT_Y, catDrawnX - x, CAT_H, C_BG);
+    }
+    catDraw(p, x, ROOM_CAT_Y);
+    catDrawnX = x;
 }
 
 static void render(uint32_t now, bool timeKnown, int hour, int minute, bool newArt) {
@@ -147,11 +169,11 @@ static void render(uint32_t now, bool timeKnown, int hour, int minute, bool newA
             if (screenNew) {
                 drawRoomScreen();                      // clears body, invalidates strip
                 drawRoomStrip(room, fresh);
-                drawCatFrame(now);
+                drawCatFrame(now, true);
                 lastCatFrame = now;
             } else if ((now - lastCatFrame) >= CAT_FRAME_MS) {
                 drawRoomStrip(room, fresh);            // repaints changed columns only
-                drawCatFrame(now);
+                drawCatFrame(now, false);
                 lastCatFrame = now;
             }
             break;
@@ -227,6 +249,7 @@ void setup() {
     ui.screen      = Screen::ROOM;       // home
     ui.lastTouchMs = now;
     cat.since      = now;
+    behaviorInit(catBeh, ROOM_CAT_X, esp_random(), now);
     Serial.printf("[boot] ready, heap %u B free\n", (unsigned)ESP.getFreeHeap());
 }
 
