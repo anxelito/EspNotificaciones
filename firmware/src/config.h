@@ -28,6 +28,7 @@
 // Pins
 #define PIN_DHT        27
 #define PIN_TOUCH      32
+#define PIN_BOOT_BTN   0      // on-board BOOT button acts like the touch pad; -1 = off
 #define BACKLIGHT_PIN  -1     // -1 = no dimming
 
 // Room comfort thresholds
