@@ -13,7 +13,8 @@ void fitText(const char* src, char* out, size_t outLen, int maxPx, int font);
 int wrapLineCount(const char* src, int maxPx, int font, int maxLines);
 
 // Draws src wrapped as above, top-left at (x, y), lineH px per line, in the
-// current text colours. strike draws a strike-through on each line.
-// Returns the number of lines drawn.
+// current text colours. strike draws a strike-through on each line; center
+// treats x as the horizontal centre of each line. Returns lines drawn.
 int drawWrapped(const char* src, int x, int y, int maxPx, int font, int lineH,
-                int maxLines, uint16_t fg, uint16_t bg, bool strike = false);
+                int maxLines, uint16_t fg, uint16_t bg, bool strike = false,
+                bool center = false);

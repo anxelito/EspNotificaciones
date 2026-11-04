@@ -9,8 +9,8 @@
 #define NOWPLAYING_POLL_MS  3000UL    // poll Spotify every 3s
 #define NOWPLAYING_MAX_FAILS 3        // consecutive failed polls before "not playing"
 #define TASKS_MAX_FAILS     3         // consecutive failed task fetches before OFFLINE
-#define ARTWORK_SIZE        64        // 64x64 px from Spotify CDN
-#define MAX_ARTWORK_BYTES   8192      // max JPEG buffer in RAM
+#define ARTWORK_SIZE        120       // 120x120 px, converted by backend/artwork.py
+#define MAX_ARTWORK_BYTES   16384     // max JPEG buffer in RAM (x3: worker, published, UI)
 
 // Network worker (core 0)
 #define NET_WORKER_CORE     0

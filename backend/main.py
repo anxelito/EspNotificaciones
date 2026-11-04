@@ -18,6 +18,7 @@ from auth import verify_api_key, verify_telegram_token
 from bot import build_application
 from spotify import get_now_playing
 import lastfm
+import artwork
 
 _bot_app = None
 
@@ -61,11 +62,15 @@ async def tasks_endpoint(_=Depends(verify_api_key)):
 async def nowplaying_endpoint(_=Depends(verify_api_key)):
     # Spotify Web API first (any device, has progress; needs Premium on the
     # app owner's account). Fall back to Last.fm scrobbles (no progress bar).
-    sp = await get_now_playing()
-    if sp.get("is_playing"):
-        return _ascii_text(sp)
-    lf = await lastfm.get_now_playing()
-    return _ascii_text(lf) if lf.get("is_playing") else sp
+    np = await get_now_playing()
+    if not np.get("is_playing"):
+        lf = await lastfm.get_now_playing()
+        if not lf.get("is_playing"):
+            return np
+        np = lf
+    np = _ascii_text(np)
+    np["artwork_url"] = await artwork.panel_url(np.get("artwork_url") or "")
+    return np
 
 
 def _ascii_fold(text: str) -> str:
@@ -80,11 +85,11 @@ def _ascii_text(np: dict) -> dict:
             for k, v in np.items()}
 
 
-@app.get(lastfm.ARTWORK_PATH)
+@app.get(artwork.ARTWORK_PATH)
 async def nowplaying_artwork():
     # Public on purpose: the panel's artwork fetch sends no API key, and the
     # image is just the current album cover.
-    data = lastfm.get_artwork()
+    data = artwork.get_artwork()
     if not data:
         raise HTTPException(status_code=404, detail="No artwork")
     return Response(content=data, media_type="image/jpeg")

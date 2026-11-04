@@ -19,8 +19,7 @@ def _reset(monkeypatch):
     monkeypatch.setenv("LASTFM_API_KEY", "k")
     monkeypatch.setenv("LASTFM_USER", "u")
     monkeypatch.setenv("BASE_URL", "https://example.com")
-    for name, val in (("_cache", None), ("_cache_at", 0.0), ("_backoff_until", 0.0),
-                      ("_art_src", ""), ("_art", b""), ("_art_hash", "")):
+    for name, val in (("_cache", None), ("_cache_at", 0.0), ("_backoff_until", 0.0)):
         monkeypatch.setattr(lastfm, name, val)
 
 
@@ -57,7 +56,8 @@ def patch_client(monkeypatch, api_body=None, exc=None):
 def track(nowplaying=True):
     t = {"name": "Song", "artist": {"#text": "Band"}, "album": {"#text": "Album"},
          "image": [{"size": "small", "#text": "https://img/34.png"},
-                   {"size": "medium", "#text": "https://img/64.png"}]}
+                   {"size": "medium", "#text": "https://img/64.png"},
+                   {"size": "extralarge", "#text": "https://img/300.png"}]}
     if nowplaying:
         t["@attr"] = {"nowplaying": "true"}
     return {"recenttracks": {"track": [t]}}
@@ -70,16 +70,12 @@ async def test_not_configured_no_http(monkeypatch):
     assert calls == []
 
 
-async def test_nowplaying_track_and_artwork(monkeypatch):
-    calls = patch_client(monkeypatch, track())
+async def test_nowplaying_track(monkeypatch):
+    patch_client(monkeypatch, track())
     np = await lastfm.get_now_playing()
     assert np["is_playing"] and np["title"] == "Song" and np["artist"] == "Band"
     assert np["album"] == "Album" and np["duration_ms"] == 0
-    assert np["artwork_url"].startswith("https://example.com/nowplaying/artwork.jpg?v=")
-    assert "https://img/64.png" in calls
-    art = lastfm.get_artwork()
-    assert art[:2] == b"\xff\xd8" and len(art) <= lastfm.ART_MAX_BYTES
-    assert Image.open(io.BytesIO(art)).size == (64, 64)
+    assert np["artwork_url"] == "https://img/300.png"   # largest; proxied later
 
 
 async def test_last_scrobble_is_not_nowplaying(monkeypatch):
@@ -105,6 +101,3 @@ async def test_error_backs_off(monkeypatch):
     assert len(calls) == 1
     assert lastfm._backoff_until > time.time()
 
-
-def test_bad_image_gives_empty():
-    assert lastfm.to_panel_jpeg(b"not an image") == b""

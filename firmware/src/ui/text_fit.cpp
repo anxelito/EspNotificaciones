@@ -95,7 +95,7 @@ int wrapLineCount(const char* src, int maxPx, int font, int maxLines) {
 }
 
 int drawWrapped(const char* src, int x, int y, int maxPx, int font, int lineH,
-                int maxLines, uint16_t fg, uint16_t bg, bool strike) {
+                int maxLines, uint16_t fg, uint16_t bg, bool strike, bool center) {
     char line[TEXT_BUF_MAX];
     int lines = 0;
     const char* s = skipSpaces(src);
@@ -103,10 +103,12 @@ int drawWrapped(const char* src, int x, int y, int maxPx, int font, int lineH,
     while (*s && lines < maxLines) {
         s = skipSpaces(buildLine(s, maxPx, font, lines == maxLines - 1, line));
         int ly = y + lines * lineH;
-        tft.drawString(line, x, ly, font);
+        int lw = tft.textWidth(line, font);
+        int lx = center ? x - lw / 2 : x;
+        tft.drawString(line, lx, ly, font);
         if (strike) {
             int fh = tft.fontHeight(font);
-            tft.drawFastHLine(x, ly + fh / 2, tft.textWidth(line, font), fg);
+            tft.drawFastHLine(lx, ly + fh / 2, lw, fg);
         }
         lines++;
     }

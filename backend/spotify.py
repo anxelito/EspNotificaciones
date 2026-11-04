@@ -17,9 +17,9 @@ _token_expires_at: float = 0.0
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_NOW_PLAYING_URL = "https://api.spotify.com/v1/me/player/currently-playing"
 
-# Spotify serves album art at 640, 300, and 64 px.
-# We want the smallest (64×64) to fit ESP32 RAM comfortably.
-_PREFERRED_ART_SIZE = 64
+# Spotify serves album art at 640, 300, and 64 px. Take 300: artwork.py
+# downscales it to the panel size.
+_PREFERRED_ART_SIZE = 300
 
 _DEFAULT_BACKOFF_S = 60.0
 _FORBIDDEN_BACKOFF_S = 600.0  # 403: retry every 10 min
@@ -97,7 +97,7 @@ async def _get_now_playing() -> dict:
             "title": str,
             "artist": str,
             "album": str,
-            "artwork_url": str,   # 64×64 JPEG URL from Spotify CDN
+            "artwork_url": str,   # cover URL on Spotify CDN (proxied by artwork.py)
             "progress_ms": int,
             "duration_ms": int,
         }

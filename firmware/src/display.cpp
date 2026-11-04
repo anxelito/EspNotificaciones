@@ -30,6 +30,6 @@ static bool _jpgRenderCallback(int16_t x, int16_t y, uint16_t w, uint16_t h, uin
 void renderArtwork(const uint8_t* jpegBuf, int jpegLen, int x, int y) {
     TJpgDec.setSwapBytes(true);
     TJpgDec.setCallback(_jpgRenderCallback);
-    TJpgDec.setJpgScale(1);  // 1:1 scale — image is already 64x64
+    TJpgDec.setJpgScale(1);  // 1:1 scale: backend already sends ARTWORK_SIZE px
     TJpgDec.drawJpg(x, y, jpegBuf, jpegLen);
 }
