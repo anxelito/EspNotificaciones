@@ -8,15 +8,22 @@ from telegram.ext import (
 import database as db
 
 
+def allowed_users() -> set[int] | None:
+    """Telegram user ids from TELEGRAM_ALLOWED_USERS ("123,456"), or None
+    when unset: then anyone who finds the bot can use it."""
+    raw = os.getenv("TELEGRAM_ALLOWED_USERS", "")
+    ids = {int(x) for x in raw.replace(" ", "").split(",") if x}
+    return ids or None
+
+
 def build_application() -> Application:
     app = Application.builder().token(os.getenv("TELEGRAM_BOT_TOKEN", "")).build()
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("add", cmd_add))
-    app.add_handler(CommandHandler("done", cmd_done))
-    app.add_handler(CommandHandler("delete", cmd_delete))
-    app.add_handler(CommandHandler("list", cmd_list))
-    app.add_handler(CommandHandler("clear", cmd_clear))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    ids = allowed_users()
+    who = filters.User(user_id=ids) if ids else filters.ALL
+    for name, fn in (("start", cmd_start), ("add", cmd_add), ("done", cmd_done),
+                     ("delete", cmd_delete), ("list", cmd_list), ("clear", cmd_clear)):
+        app.add_handler(CommandHandler(name, fn, filters=who))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & who, handle_text))
     return app
 
 
