@@ -1,310 +1,304 @@
-// firmware/src/ui/cat_draw.cpp -- the mascot: a little hovering robot
+// firmware/src/ui/cat_draw.cpp -- cat mascot drawn with TFT_eSPI primitives
 //
-// (File and type names still say "cat": the mascot logic -- moods, idle acts,
-// pose -- is shared; only the drawing changed.) Every frame is painted into
-// one CAT_W x CAT_H sprite whose background is the room scene behind it, so
-// pushSprite never flickers and the robot never shows a box.
-//
-// Idle acts: WALK = fly across, LOOK = eyes glance aside, GROOM = scan line,
-// YAWN = low-battery blink, STRETCH = arms up, HOP = thruster bounce.
-// Moods: PETTED = heart eyes + hop, WOKEN = sleepy eyes, SLEEPING = docked
-// and charging. Comfort: eyes/antenna/chest light colour; cold = frost and
-// shiver, hot = steam; humid = water drop; dry = spark.
+// Every frame is painted into one CAT_W x CAT_H 16-bit sprite whose
+// background is C_BG, so pushSprite needs no transparency and never flickers.
+// The shapes follow the "B - Gatito" mock-up: triangle ears, round body,
+// dark eyes with highlights, pink nose, "w" mouth, whiskers; asleep it curls
+// into a ball ("hecho bola") with closed-eye arcs and drifting "Zzz".
 #include "cat_draw.h"
 #include <math.h>
 #include "theme.h"
 #include "../display.h"
 #include "room_scene.h"
-#include "screen_room.h"
 
 static TFT_eSprite spr(&tft);
 static bool        haveSprite = false;
 
-static constexpr uint16_t C_METAL   = rgb565(0xc9, 0xd2, 0xe6);
-static constexpr uint16_t C_METAL_D = rgb565(0x9a, 0xa6, 0xc2);
-static constexpr uint16_t C_METAL_L = rgb565(0xe9, 0xee, 0xf8);
-static constexpr uint16_t C_SCREEN  = rgb565(0x1a, 0x20, 0x36);
-static constexpr uint16_t C_FLAME   = rgb565(0x7a, 0xd7, 0xff);
-static constexpr uint16_t C_FLAME_C = rgb565(0xe6, 0xf8, 0xff);
-static constexpr uint16_t C_HEART   = rgb565(0xff, 0x6b, 0x8a);
-static constexpr uint16_t C_DROP    = rgb565(0x9f, 0xd6, 0xff);
-static constexpr uint16_t C_ZZZ     = rgb565(0x8f, 0xa3, 0xff);
-static constexpr uint16_t C_PAPER   = rgb565(0xf4, 0xf1, 0xe8);
-static constexpr uint16_t C_SHADOW  = rgb565(0x08, 0x0b, 0x16);
-static constexpr uint16_t C_DOCK    = rgb565(0x2a, 0x33, 0x52);
-static constexpr uint16_t C_STEAM   = rgb565(0xd8, 0xdd, 0xe8);
-static constexpr uint16_t C_SPARK   = rgb565(0xff, 0xe8, 0x6a);
-static constexpr uint16_t C_CAP     = rgb565(0x4a, 0x5f, 0xc8);
-static constexpr uint16_t C_CAP_L   = rgb565(0x8f, 0xa3, 0xff);
-static constexpr uint16_t C_CAP_B   = rgb565(0xe8, 0xec, 0xf6);
+static constexpr uint16_t C_PINK   = rgb565(0xf7, 0xa1, 0xb5);
+static constexpr uint16_t C_HEART  = rgb565(0xff, 0x6b, 0x8a);
+static constexpr uint16_t C_DROP   = rgb565(0x9f, 0xd6, 0xff);
+static constexpr uint16_t C_ZZZ    = rgb565(0x8f, 0xa3, 0xff);
+static constexpr uint16_t C_WHITE  = 0xFFFF;
+static constexpr uint16_t C_SHADOW = 0x0000;
+static constexpr uint16_t C_EYE    = C_BG;
+static constexpr uint16_t C_BED    = rgb565(0x5a, 0x3d, 0x6e);
+static constexpr uint16_t C_BED_L  = rgb565(0x7d, 0x58, 0x96);
+static constexpr uint16_t C_PAPER  = rgb565(0xf4, 0xf1, 0xe8);
 
 static const float PI_F = 3.14159265f;
-// Floor line inside the sprite (shadow / dock sit here).
-static const int FLOOR_IN = ROOM_FLOOR_Y - ROOM_CAT_Y;   // 78
 
 bool catDrawInit() {
     if (haveSprite) return true;
     spr.setColorDepth(16);
     haveSprite = spr.createSprite(CAT_W, CAT_H) != nullptr;
-    if (!haveSprite) Serial.println("[bot] sprite alloc failed, drawing direct");
+    if (!haveSprite) Serial.println("[cat] sprite alloc failed, drawing direct");
     return haveSprite;
 }
 
-// ---- small parts -------------------------------------------------------------
+// ---- small parts ---------------------------------------------------------
 
+// Thick (2 px) line: one pass plus one shifted down a pixel.
 static void line2(TFT_eSPI& g, int x0, int y0, int x1, int y1, uint16_t c) {
     g.drawLine(x0, y0, x1, y1, c);
-    g.drawLine(x0 + 1, y0, x1 + 1, y1, c);
     g.drawLine(x0, y0 + 1, x1, y1 + 1, c);
 }
 
-static void heart(TFT_eSPI& g, int x, int y, int s, uint16_t c) {
-    g.fillCircle(x - s, y, s, c);
-    g.fillCircle(x + s, y, s, c);
-    g.fillTriangle(x - 2 * s, y + 1, x + 2 * s, y + 1, x, y + 2 * s + 1, c);
+static void heart(TFT_eSPI& g, int x, int y, uint16_t c) {
+    g.fillCircle(x - 2, y, 2, c);
+    g.fillCircle(x + 2, y, 2, c);
+    g.fillTriangle(x - 4, y + 1, x + 4, y + 1, x, y + 5, c);
 }
 
-static void drop(TFT_eSPI& g, int x, int y) {
+static void sweatDrop(TFT_eSPI& g, int x, int y) {
     g.fillTriangle(x - 3, y + 3, x + 3, y + 3, x, y - 3, C_DROP);
     g.fillCircle(x, y + 4, 3, C_DROP);
+    g.drawPixel(x - 1, y + 3, C_WHITE);
 }
 
+// Eye. closed: line (blink / yawn / stretch); happy: "^"; pdx/pdy: pupil
+// offset (looking around / walking direction).
+static void eye(TFT_eSPI& g, int ex, int ey, uint16_t body, bool closed, bool happy,
+                bool sleepy, int pdx, int pdy) {
+    if (happy) {
+        line2(g, ex - 5, ey + 2, ex, ey - 3, C_EYE);
+        line2(g, ex, ey - 3, ex + 5, ey + 2, C_EYE);
+        return;
+    }
+    if (closed) {
+        g.drawFastHLine(ex - 5, ey, 11, C_EYE);
+        g.drawFastHLine(ex - 5, ey + 1, 11, C_EYE);
+        return;
+    }
+    g.fillCircle(ex + pdx, ey + pdy, 5, C_EYE);
+    if (sleepy) {                               // half-lid at night
+        g.fillRect(ex - 7, ey - 7, 15, 5, body);
+        g.drawFastHLine(ex - 5, ey - 2, 11, C_EYE);
+        g.fillCircle(ex + pdx + 2, ey + 1, 1, C_WHITE);
+        return;
+    }
+    g.fillCircle(ex + pdx + 2, ey + pdy - 2, 1, C_WHITE);
+    g.drawPixel(ex + pdx - 2, ey + pdy + 2, C_WHITE);
+}
+
+// 0 at the ends of an act, 1 in the middle (smooth in/out).
 static float bump(float ph) { return sinf(ph * PI_F); }
+// 0 -> 1 quickly, held, then back to 0 at the end.
 static float hold(float ph) {
     if (ph < 0.15f) return ph / 0.15f;
     if (ph > 0.85f) return (1.0f - ph) / 0.15f;
     return 1.0f;
 }
 
-// ---- awake ---------------------------------------------------------------------
+// ---- awake: IDLE / WOKEN / PETTED (+ idle acts) ---------------------------
 
 static void drawAwake(TFT_eSPI& g, const CatPose& p, int ox, int oy) {
-    const uint16_t glow = p.body;                     // comfort colour
-    const bool idle = p.mood == CatMood::IDLE;
-    const CatAct act = idle ? p.act : CatAct::SIT;
-    const float ph = p.actPhase;
-    const int face = p.facing >= 0 ? 1 : -1;
-    const uint32_t t = p.nowMs;
+    const uint16_t body  = p.body;
+    const uint16_t light = mix565(body, C_WHITE, 170);
+    const uint16_t dark  = darken565(body);
+    const uint16_t blush = mix565(C_PINK, body, 140);
+    const bool     idle  = p.mood == CatMood::IDLE;
+    const CatAct   act   = idle ? p.act : CatAct::SIT;
+    const float    ph    = p.actPhase;
+    const int      face  = p.facing >= 0 ? 1 : -1;
 
-    // Cold: shiver by a pixel while hovering in place.
+    // Cold: shiver left/right by a pixel while sitting.
     int shiver = 0;
     if (idle && act == CatAct::SIT && p.comfort == Comfort::COLD)
-        shiver = ((t / 70) % 2) ? 1 : -1;
+        shiver = ((p.nowMs / 70) % 2) ? 1 : -1;
     const int cx = ox + CAT_W / 2 + shiver;
 
-    // Height: hover bob, HOP / petting bounce.
-    int lift = 0;
+    // Vertical offset: petting hop, HOP act, walking bob, else breathing.
+    int hop = 0;
     float petPhase = 0;
     if (p.mood == CatMood::PETTED) {
-        uint32_t el = t - p.moodSince;
+        uint32_t el = p.nowMs - p.moodSince;
         petPhase = el >= PET_MS ? 1.0f : (float)el / (float)PET_MS;
-        lift = (int)lroundf(6.0f * fabsf(sinf(petPhase * PI_F * 3.0f)));
+        hop = (int)lroundf(6.0f * fabsf(sinf(petPhase * PI_F * 3.0f)));
     } else if (act == CatAct::HOP) {
-        lift = (int)lroundf(6.0f * bump(ph));
+        hop = (int)lroundf(8.0f * bump(ph));
     }
-    const int bob = (int)lroundf(2.5f * sinf((float)(t % 1400) * (2.0f * PI_F / 1400.0f)));
-    const int hy = oy + 20 + bob - lift;              // top of the head
-    const int tilt = (act == CatAct::WALK) ? face * 2 : 0;   // lean into the flight
+    const int step = (act == CatAct::WALK) ? (int)((p.nowMs / 180) % 2) : 0;
+    int breathe = sinf((float)(p.nowMs % 3200) * (2.0f * PI_F / 3200.0f)) > 0.5f ? 1 : 0;
+    if (act == CatAct::WALK) breathe = step;
+    const float st = (act == CatAct::STRETCH) ? bump(ph) : 0.0f;   // 0..1
+    const int by = oy + 8 - hop + (hop ? 0 : breathe) + (int)(4 * st);  // ear tips
 
-    // Shadow on the floor, smaller when higher.
-    int sh = 17 - lift / 2 - bob;
-    g.fillEllipse(cx, oy + FLOOR_IN + 6, sh, 3, C_SHADOW);
+    // Ground shadow stays put and shrinks as the cat leaves the floor.
+    g.fillEllipse(cx, oy + 83, 26 - hop + (int)(5 * st), 3, C_SHADOW);
 
-    // Thruster flame under the body (bigger while flying / hopping).
+    // Tail behind the body, on the side opposite to where the cat faces.
     {
-        int len = 5 + (int)((t / 60) % 3);
-        if (act == CatAct::WALK || act == CatAct::HOP || p.mood == CatMood::PETTED) len += 4;
-        int fy = hy + 60;
-        g.fillTriangle(cx - 7, fy, cx + 7, fy, cx - tilt, fy + len, C_FLAME);
-        g.fillTriangle(cx - 3, fy, cx + 3, fy, cx - tilt, fy + len - 4, C_FLAME_C);
-    }
-
-    // Antenna with a glowing tip; spins faster while scanning.
-    {
-        float sp = (act == CatAct::GROOM) ? 120.0f : 380.0f;
-        int sway = (int)lroundf(4.0f * sinf((float)t / sp));
-        int ax = cx + tilt + sway, ay = hy - 8;
-        line2(g, cx + tilt, hy, ax, ay, C_METAL_D);
-        g.fillCircle(ax, ay, 5, mix565(glow, C_SCREEN, 70));   // glow halo
-        g.fillCircle(ax, ay, 3, glow);
-        g.drawPixel(ax - 1, ay - 2, C_METAL_L);
-    }
-
-    // Arms (behind the body): down by default, up while stretching, one
-    // waving while petted.
-    const float st = (act == CatAct::STRETCH) ? bump(ph) : 0.0f;
-    {
-        int sy = hy + 44;
-        int down = 14 - (int)(26 * st);
-        int lhx = cx - 26 - (int)(4 * st), lhy = sy + down;
-        int rhx = cx + 26 + (int)(4 * st), rhy = sy + down;
-        if (p.mood == CatMood::PETTED) rhy = sy - 8 + (int)(4 * sinf(t / 90.0f));
-        if (act == CatAct::WALK) { lhy -= face > 0 ? 4 : 0; rhy -= face < 0 ? 4 : 0; }
-        line2(g, cx - 16, sy, lhx, lhy, C_METAL_D);
-        line2(g, cx + 15, sy, rhx, rhy, C_METAL_D);
-        g.fillCircle(lhx, lhy, 4, C_METAL);
-        g.fillCircle(rhx, rhy, 4, C_METAL);
-    }
-
-    // Body + chest light.
-    g.fillRoundRect(cx - 17 + tilt / 2, hy + 38, 34, 22, 9, C_METAL_D);
-    g.fillRoundRect(cx - 15 + tilt / 2, hy + 39, 30, 6, 3, C_METAL);
-    {
-        float pulse = 0.5f + 0.5f * sinf((float)(t % 1600) * (2.0f * PI_F / 1600.0f));
-        g.fillCircle(cx + tilt / 2, hy + 50, 5, mix565(glow, C_METAL_D, (uint8_t)(120 + 135 * pulse)));
-    }
-
-    // Head + screen face.
-    const int hx = cx - 24 + tilt;
-    g.fillRoundRect(hx, hy, 48, 36, 11, C_METAL);
-    g.fillRoundRect(hx + 3, hy + 2, 42, 4, 2, C_METAL_L);            // shine
-    g.fillRoundRect(hx + 6, hy + 7, 36, 23, 7, C_SCREEN);
-    g.fillCircle(hx - 1, hy + 18, 3, C_METAL_D);                       // ear bolts
-    g.fillCircle(hx + 49, hy + 18, 3, C_METAL_D);
-
-    // Eyes on the screen.
-    int pdx = 0, pdy = 0;
-    if (act == CatAct::WALK) pdx = 3 * face;
-    if (act == CatAct::LOOK) { pdx = (int)lroundf(5.0f * p.look * hold(ph)); pdy = -1; }
-    const int ey = hy + 12 + pdy;
-    const int exL = hx + 13 + pdx, exR = hx + 27 + pdx;
-    const bool sleepy = p.mood == CatMood::WOKEN;
-    const bool lowBat = act == CatAct::YAWN;
-    if (p.mood == CatMood::PETTED) {
-        heart(g, exL + 4, ey + 3, 2, C_HEART);
-        heart(g, exR + 4, ey + 3, 2, C_HEART);
-    } else if (act == CatAct::GROOM) {                 // scanning line sweeps
-        int sx = hx + 9 + (int)((ph * 7.0f - floorf(ph * 7.0f)) * 28.0f);
-        g.fillRect(hx + 9, ey + 4, 30, 2, mix565(glow, C_SCREEN, 90));
-        g.fillRect(sx, ey + 1, 3, 8, glow);
-    } else if (lowBat) {                               // battery icon blinking
-        bool on = ((t / 250) % 2) == 0;
-        g.drawRect(hx + 15, ey, 16, 9, glow);
-        g.fillRect(hx + 31, ey + 3, 2, 3, glow);
-        if (on) g.fillRect(hx + 17, ey + 2, 3, 5, C_URGENT);
-    } else if (p.blink || st > 0.3f) {
-        g.fillRect(exL, ey + 4, 8, 2, glow);
-        g.fillRect(exR, ey + 4, 8, 2, glow);
-    } else if (sleepy) {
-        g.fillRoundRect(exL, ey + 3, 8, 5, 2, glow);
-        g.fillRoundRect(exR, ey + 3, 8, 5, 2, glow);
-    } else {
-        g.fillRoundRect(exL, ey, 8, 10, 3, glow);
-        g.fillRoundRect(exR, ey, 8, 10, 3, glow);
-        g.fillRect(exL + 1, ey + 1, 2, 2, C_METAL_L);
-        g.fillRect(exR + 1, ey + 1, 2, 2, C_METAL_L);
-    }
-    // Mouth: small smile, open "o" when hot.
-    if (!lowBat && act != CatAct::GROOM) {
-        if (p.comfort == Comfort::HOT) g.fillCircle(hx + 24 + pdx / 2, hy + 25, 2, glow);
-        else g.drawFastHLine(hx + 20 + pdx / 2, hy + 25, 8, mix565(glow, C_SCREEN, 160));
-    }
-
-    // Comfort / humidity extras.
-    if (p.comfort == Comfort::COLD) {                  // frost on the head corners
-        g.fillTriangle(hx + 2, hy + 3, hx + 9, hy + 1, hx + 3, hy + 8, C_METAL_L);
-        g.fillTriangle(hx + 46, hy + 3, hx + 39, hy + 1, hx + 45, hy + 8, C_METAL_L);
-        if ((t / 700) % 4 == 0) { g.drawCircle(hx + 52, hy + 24, 2, C_DROP); g.drawCircle(hx + 57, hy + 20, 1, C_DROP); }
-    } else if (p.comfort == Comfort::HOT) {            // steam puffs rising
-        for (int i = 0; i < 2; i++) {
-            float sp = (float)((t + i * 600) % 1200) / 1200.0f;
-            g.fillCircle(hx + 10 + i * 28, hy - 2 - (int)(sp * 12), 2 + (int)(sp * 2),
-                         mix565(C_STEAM, C_SCREEN, (uint8_t)(220 * (1.0f - sp))));
+        const int side = -face;
+        float period = (act == CatAct::WALK) ? 700.0f : 2800.0f;
+        float amp    = (act == CatAct::WALK || act == CatAct::HOP) ? 5.0f : 3.0f;
+        int sway = (int)lroundf(amp * sinf(fmodf((float)p.nowMs, period) * (2.0f * PI_F / period)));
+        float up = (act == CatAct::HOP || p.mood == CatMood::PETTED) ? 8.0f : 0.0f;
+        float x0 = cx + side * 22, y0 = by + 66;
+        float xc = cx + side * 44, yc = by + 66;
+        float x1 = cx + side * 38 + sway, y1 = by + 38 - up;
+        for (int i = 0; i <= 10; i++) {
+            float t = i / 10.0f, u = 1 - t;
+            int x = (int)(u * u * x0 + 2 * u * t * xc + t * t * x1);
+            int y = (int)(u * u * y0 + 2 * u * t * yc + t * t * y1);
+            g.fillCircle(x, y, 3, body);
         }
     }
-    if (p.humid == HumidMood::HUMID) drop(g, hx + 50, hy + 4 + (int)((t / 150) % 6));
-    if (p.humid == HumidMood::DRY && (t / 400) % 5 == 0) {
-        g.drawLine(hx - 4, hy + 30, hx - 1, hy + 26, C_SPARK);
-        g.drawLine(hx - 1, hy + 26, hx - 5, hy + 25, C_SPARK);
+
+    // Ears (occasional twitch; flatter while stretching).
+    int twL = (p.nowMs % 5200) < 160 ? 3 : 0;
+    int twR = ((p.nowMs + 2600) % 7100) < 160 ? 3 : 0;
+    int ef = (int)(4 * st);
+    g.fillTriangle(cx - 28 - ef, by + 24, cx - 24 - twL - ef, by + (twL ? 2 : 0) + ef, cx - 8, by + 17, body);
+    g.fillTriangle(cx + 28 + ef, by + 24, cx + 24 + twR + ef, by + (twR ? 2 : 0) + ef, cx + 8, by + 17, body);
+    g.fillTriangle(cx - 23 - ef, by + 20, cx - 22 - twL - ef, by + 6 + ef, cx - 13, by + 17, C_PINK);
+    g.fillTriangle(cx + 23 + ef, by + 20, cx + 22 + twR + ef, by + 6 + ef, cx + 13, by + 17, C_PINK);
+
+    // Head + body blob (wider and flatter while stretching), belly.
+    const int rx = 31 + (int)(5 * st), ry = 27 - (int)(4 * st);
+    g.fillEllipse(cx, by + 44, rx, ry, body);
+    g.fillEllipse(cx, by + 62 - (int)(2 * st), 14, 8, light);
+
+    // Front paws: alternate while walking, pushed out while stretching,
+    // one raised to the mouth while grooming.
+    int lpY = by + 70, rpY = by + 70;
+    int lpX = cx - 12 - (int)(8 * st), rpX = cx + 12 + (int)(8 * st);
+    if (act == CatAct::WALK) { if (step) lpY -= 3; else rpY -= 3; }
+    const bool groom = act == CatAct::GROOM;
+    if (!groom || face > 0) g.fillEllipse(lpX, lpY, 7, 4, light);
+    if (!groom || face < 0) g.fillEllipse(rpX, rpY, 7, 4, light);
+
+    // Face. Pupils follow the walking direction or the LOOK target.
+    int pdx = 0, pdy = 0;
+    if (act == CatAct::WALK) pdx = 2 * face;
+    if (act == CatAct::LOOK) { pdx = (int)lroundf(3.0f * p.look * hold(ph)); pdy = -1; }
+    const bool yawnOpen = act == CatAct::YAWN && ph > 0.15f && ph < 0.9f;
+    const bool closed = p.blink || yawnOpen || st > 0.3f;
+    const bool happy  = p.mood == CatMood::PETTED || groom;
+    const bool sleepy = p.mood == CatMood::WOKEN;
+    eye(g, cx - 11, by + 39, body, closed, happy, sleepy, pdx, pdy);
+    eye(g, cx + 11, by + 39, body, closed, happy, sleepy, pdx, pdy);
+    g.fillCircle(cx - 20, by + 49, 3, blush);
+    g.fillCircle(cx + 20, by + 49, 3, blush);
+    g.fillTriangle(cx - 3, by + 46, cx + 3, by + 46, cx, by + 49, C_PINK);
+
+    const bool pant = p.humid == HumidMood::DRY || p.comfort == Comfort::HOT;
+    if (act == CatAct::YAWN) {                  // big yawn, opening and closing
+        float o = bump(ph);
+        int myr = 1 + (int)lroundf(6.0f * o), mxr = 2 + (int)lroundf(3.0f * o);
+        g.fillEllipse(cx, by + 52 + myr / 2, mxr, myr, C_EYE);
+        if (myr > 3) g.fillEllipse(cx, by + 52 + myr, mxr - 1, 2, C_PINK);
+    } else if (groom) {                         // licking: tongue out
+        g.fillEllipse(cx, by + 53, 2, 2, C_EYE);
+        g.fillEllipse(cx + face, by + 55, 2, 2, C_PINK);
+    } else if (pant) {                          // panting: open mouth + bobbing tongue
+        int tb = (int)((p.nowMs / 220) % 2);
+        g.fillEllipse(cx, by + 53, 3, 3, C_EYE);
+        g.fillEllipse(cx, by + 55 + tb, 2, 1 + tb, C_PINK);
+    } else {                                    // "w" mouth
+        g.drawLine(cx, by + 49, cx - 2, by + 52, C_EYE);
+        g.drawLine(cx - 2, by + 52, cx - 5, by + 50, C_EYE);
+        g.drawLine(cx, by + 49, cx + 2, by + 52, C_EYE);
+        g.drawLine(cx + 2, by + 52, cx + 5, by + 50, C_EYE);
     }
 
-    // Letter held up (new task), floating heart (petted).
-    if (p.envelope) {
-        int ex = cx - 10, eyy = hy + 44 + (int)((t / 300) % 2);
-        g.fillRect(ex, eyy, 20, 13, C_PAPER);
-        g.drawRect(ex, eyy, 20, 13, C_METAL_D);
-        g.drawLine(ex, eyy, ex + 10, eyy + 7, C_METAL_D);
-        g.drawLine(ex + 19, eyy, ex + 10, eyy + 7, C_METAL_D);
-        g.fillCircle(ex + 10, eyy + 7, 2, C_HEART);
+    // Whiskers (darkened body: visible on the fur and on the background).
+    g.drawLine(cx - 15, by + 48, cx - 34, by + 45, dark);
+    g.drawLine(cx - 15, by + 51, cx - 34, by + 53, dark);
+    g.drawLine(cx + 15, by + 48, cx + 34, by + 45, dark);
+    g.drawLine(cx + 15, by + 51, cx + 34, by + 53, dark);
+
+    // Grooming paw drawn last, over the face, bobbing at the mouth.
+    if (groom) {
+        int lick = (int)lroundf(3.0f * fabsf(sinf(ph * PI_F * 7.0f)));
+        int px = cx + face * 9, py = by + 58 - lick;
+        g.fillEllipse(px, py, 6, 5, light);
+        g.drawFastHLine(px - 2, py - 2, 5, dark);
     }
-    if (p.mood == CatMood::PETTED) heart(g, cx + 34, oy + 22 - (int)(petPhase * 14.0f), 3, C_HEART);
+
+    if (p.humid == HumidMood::HUMID) {          // sweat drop sliding down
+        sweatDrop(g, cx + 24, by + 24 + (int)((p.nowMs / 150) % 6));
+    }
+    if (p.envelope) {                           // letter held against the chest
+        int ex = cx - 10, ey = by + 58 + (int)((p.nowMs / 300) % 2);
+        g.fillRect(ex, ey, 20, 13, C_PAPER);
+        g.drawRect(ex, ey, 20, 13, dark);
+        g.drawLine(ex, ey, ex + 10, ey + 7, dark);
+        g.drawLine(ex + 19, ey, ex + 10, ey + 7, dark);
+        g.fillCircle(ex + 10, ey + 7, 2, C_HEART);
+        g.fillEllipse(lpX + 4, ey + 11, 6, 4, light);   // paws holding it
+        g.fillEllipse(rpX - 4, ey + 11, 6, 4, light);
+    }
+    if (p.mood == CatMood::PETTED) {            // heart floating up
+        heart(g, cx + 38, oy + 22 - (int)(petPhase * 14.0f), C_HEART);
+    }
+    if (shiver && (p.nowMs / 700) % 4 == 0) {   // little cold puffs
+        g.drawCircle(cx + 36, by + 52, 2, C_DROP);
+        g.drawCircle(cx + 41, by + 49, 1, C_DROP);
+    }
 }
 
-// ---- asleep: docked and charging -------------------------------------------------
+// ---- asleep: curled ball, closed eyes, Zzz ---------------------------------
 
 static void drawAsleep(TFT_eSPI& g, const CatPose& p, int ox, int oy) {
-    const uint32_t t = p.nowMs;
+    const uint16_t body = darken565(p.body);
+    const uint16_t tail = mix565(p.body, 0x0000, 180);   // lighter than the ball
+    const uint16_t pink = darken565(C_PINK);
     const int cx = ox + CAT_W / 2;
-    const uint16_t glow = mix565(p.body, C_SCREEN, 110);
-    const uint16_t metal = mix565(C_METAL, 0x0000, 150);
-    const uint16_t metalD = mix565(C_METAL_D, 0x0000, 150);
+    const int cy = oy + 64;
+    // Slow breathing: the ball swells by 1 px.
+    int ry = sinf((float)(p.nowMs % 4000) * (2.0f * PI_F / 4000.0f)) > 0 ? 14 : 13;
 
-    // Charging dock on the floor, light pulsing green.
-    const int dy = oy + FLOOR_IN;
-    g.fillRoundRect(cx - 30, dy - 2, 60, 10, 4, C_DOCK);
-    float pulse = 0.5f + 0.5f * sinf((float)(t % 2000) * (2.0f * PI_F / 2000.0f));
-    g.fillRect(cx - 20, dy + 3, 40, 2, mix565(C_OK, C_DOCK, (uint8_t)(80 + 175 * pulse)));
+    // Cushion bed under the ball.
+    g.fillEllipse(cx + 3, oy + 79, 46, 8, C_BED);
+    g.fillEllipse(cx + 3, oy + 76, 42, 5, C_BED_L);
+    g.fillEllipse(cx + 4, cy, 34, ry, body);
 
-    // Robot slumped on the dock: body, limp arms.
-    const int hy = dy - 48;
-    g.fillRoundRect(cx - 17, hy + 34, 34, 16, 8, metalD);
-    g.fillCircle(cx - 21, hy + 47, 4, metal);
-    g.fillCircle(cx + 21, hy + 47, 4, metal);
+    // Head tucked on the left, little ears.
+    const int hx = cx - 18, hy = cy - 3;
+    g.fillTriangle(hx - 13, hy - 6, hx - 11, hy - 20, hx - 2, hy - 13, body);
+    g.fillTriangle(hx + 2, hy - 14, hx + 10, hy - 19, hx + 12, hy - 7, body);
+    g.fillTriangle(hx - 10, hy - 9, hx - 9, hy - 16, hx - 5, hy - 12, pink);
+    g.fillTriangle(hx + 4, hy - 13, hx + 9, hy - 16, hx + 9, hy - 9, pink);
+    g.fillCircle(hx, hy, 15, body);
 
-    // Head drooped forward and to the side.
-    const int hx = cx - 21, hh = hy + 4;
-    line2(g, hx + 24, hh, hx + 13, hh - 3, metalD);              // antenna flopped over
-    g.fillCircle(hx + 12, hh - 3, 3, mix565(metalD, C_SCREEN, 120));   // tip off
-    g.fillRoundRect(hx, hh, 48, 34, 11, metal);
-
-    // Screen "breathes": slow dim glow.
-    float br = 0.5f + 0.5f * sinf((float)(t % 4000) * (2.0f * PI_F / 4000.0f));
-    g.fillRoundRect(hx + 6, hh + 7, 36, 22, 7, mix565(glow, C_SCREEN, (uint8_t)(20 + 45 * br)));
-
-    // Closed eyes: little "u" arcs.
-    for (int e = 0; e < 2; e++) {
-        int ex = hx + 12 + e * 16, ey = hh + 15;
-        for (int k = 0; k < 2; k++) {
-            g.drawLine(ex, ey + k, ex + 2, ey + 3 + k, glow);
-            g.drawLine(ex + 2, ey + 3 + k, ex + 6, ey + 3 + k, glow);
-            g.drawLine(ex + 6, ey + 3 + k, ex + 8, ey + k, glow);
-        }
+    // Tail wrapped along the front, tip under the chin.
+    for (int i = 0; i <= 12; i++) {
+        float a = (i / 12.0f) * 0.8f * PI_F;
+        int x = (int)(cx + 11 + 26.0f * cosf(a));
+        int y = (int)(cy + 2 + 9.0f * sinf(a));
+        g.fillCircle(x, y, 3, tail);
     }
 
-    // Night cap: cone on the head whose tip flops over to the right, one
-    // stripe, white band and pompom.
-    g.fillTriangle(hx + 6, hh, hx + 42, hh, hx + 29, hh - 21, C_CAP);
-    g.fillTriangle(hx + 24, hh - 13, hx + 33, hh - 21, hx + 50, hh - 8, C_CAP);
-    g.fillTriangle(hx + 12, hh - 6, hx + 37, hh - 6, hx + 21, hh - 11, C_CAP_L);
-    g.fillTriangle(hx + 37, hh - 6, hx + 33, hh - 12, hx + 21, hh - 11, C_CAP_L);
-    g.fillRoundRect(hx + 2, hh - 3, 44, 6, 3, C_CAP_B);
-    g.fillCircle(hx + 51, hh - 7, 4, C_CAP_B);
+    // Closed-eye arcs and tiny nose.
+    for (int s = -1; s <= 1; s += 2) {
+        int ex = hx + s * 6, ey = hy - 2;
+        g.drawLine(ex - 3, ey, ex - 1, ey + 2, C_EYE);
+        g.drawLine(ex - 1, ey + 2, ex + 1, ey + 2, C_EYE);
+        g.drawLine(ex + 1, ey + 2, ex + 3, ey, C_EYE);
+        g.drawLine(ex - 3, ey + 1, ex - 1, ey + 3, C_EYE);
+        g.drawLine(ex + 1, ey + 3, ex + 3, ey + 1, C_EYE);
+    }
+    g.fillTriangle(hx - 2, hy + 4, hx + 2, hy + 4, hx, hy + 6, pink);
 
-    // Battery filling up, left of the head.
-    int lvl = (int)((t / 600) % 5);
-    g.drawRect(cx - 47, hh + 10, 14, 8, C_OK);
-    g.fillRect(cx - 33, hh + 12, 2, 4, C_OK);
-    for (int i = 0; i < lvl; i++) g.fillRect(cx - 45 + i * 2 + i / 2, hh + 12, 2, 4, C_OK);
-
-    // "Zzz": three letters on a 3.6 s loop, growing, rising and fading.
-    const uint32_t ZP = 3600;
+    // "Zzz": three letters on a 3 s loop, staggered, rising and fading.
+    const uint32_t ZP = 3000;
     for (int i = 0; i < 3; i++) {
-        float zp = (float)((t + i * (ZP / 3)) % ZP) / ZP;
-        float a  = zp < 0.15f ? zp / 0.15f : (1.0f - zp) / 0.85f;
-        int zx = cx - 44 + (int)(zp * 16.0f);
-        int zy = hh - 8 - (int)(zp * 30.0f);
-        g.setTextColor(mix565(C_ZZZ, C_SCREEN, (uint8_t)(a * 255.0f)));
-        g.drawString(zp < 0.5f ? "z" : "Z", zx, zy, zp < 0.25f ? 1 : (zp < 0.7f ? 2 : 4));
+        float ph = (float)((p.nowMs + i * (ZP / 3)) % ZP) / ZP;   // 0..1
+        float a  = ph < 0.15f ? ph / 0.15f : (1.0f - ph) / 0.85f;
+        int zx = cx + 10 + (int)(ph * 18.0f + 2.0f * sinf(ph * 2.0f * PI_F * 2.0f));
+        int zy = oy + 40 - (int)(ph * 36.0f);
+        g.setTextColor(mix565(C_ZZZ, C_BG, (uint8_t)(a * 255.0f)));
+        g.drawString(ph < 0.66f ? "z" : "Z", zx, zy, ph < 0.33f ? 1 : 2);
     }
 }
 
-// ---- entry point -------------------------------------------------------------------
+// ---- entry point -----------------------------------------------------------
 
 void catDraw(const CatPose& p, int x, int y) {
     TFT_eSPI& g = haveSprite ? (TFT_eSPI&)spr : tft;
     int ox = haveSprite ? 0 : x;
     int oy = haveSprite ? 0 : y;
-    // Room behind the robot (wall, window, floor), so it never shows a box.
+    // Room behind the cat (wall, floor, rug, plant), so it never shows a box.
     if (haveSprite) drawSceneLower(spr, x, y);
     else            sceneRepaintRect(x, y, CAT_W, CAT_H);
     if (p.mood == CatMood::SLEEPING) drawAsleep(g, p, ox, oy);

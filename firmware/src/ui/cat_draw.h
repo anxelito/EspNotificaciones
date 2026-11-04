@@ -6,7 +6,7 @@
 #include "../logic/room.h"
 
 #define CAT_W 100
-#define CAT_H 94
+#define CAT_H 90
 
 struct CatPose {
     CatMood   mood;
