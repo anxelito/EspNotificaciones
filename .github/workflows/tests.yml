@@ -14,12 +14,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r backend/requirements.txt
-      - run: cd backend && python -m pytest -q
-        env:
-          TELEGRAM_BOT_TOKEN: "123:test"
-          TELEGRAM_SECRET_TOKEN: test
-          API_KEY: test
-          BASE_URL: https://example.com
+      - run: cd backend && python -m pytest -q   # the tests set their own env
 
   firmware:
     runs-on: ubuntu-latest
