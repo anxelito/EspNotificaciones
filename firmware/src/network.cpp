@@ -33,7 +33,11 @@ bool connectWiFi() {
 
 void clockBegin() {
     // ESP-IDF SNTP runs in the lwIP thread and re-syncs on its own (default 1 h).
-    configTime(TZ_OFFSET * 3600L, 0, NTP_SERVER);
+#ifdef TZ_POSIX
+    configTzTime(TZ_POSIX, NTP_SERVER);           // with summer time rules
+#else
+    configTime(TZ_OFFSET * 3600L, 0, NTP_SERVER);  // fixed offset, no DST
+#endif
 }
 
 bool clockGetHM(int* hour, int* minute) {
