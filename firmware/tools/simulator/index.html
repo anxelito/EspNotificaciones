@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador del panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap">
+<style>
+/* Mirrors firmware/src/ui (room_scene, cat_draw = robot, chrome, screen_room)
+   and logic (cat_state, cat_behavior) closely enough to preview the panel. */
+:root{--bg:#0e1016;--panel:#171a23;--line:#262b37;--fg:#e9ebf0;--muted:#9098aa;--accent:#6ea6ff;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 Nunito,ui-rounded,system-ui,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 40px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:start}
+@media (max-width:860px){.wrap{grid-template-columns:1fr}}
+h1{margin:0 0 4px;font-weight:900;font-size:28px}
+.sub{margin:0 0 16px;color:var(--muted)}
+.bezel{background:#05060a;border-radius:18px;padding:14px;box-shadow:0 12px 40px rgba(0,0,0,.4)}
+canvas{display:block;width:100%;aspect-ratio:4/3;image-rendering:auto;border-radius:4px;background:#0b0d12}
+.side{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:16px}
+.row{display:flex;flex-direction:column;gap:6px}
+.row label,.lab{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.val{font-weight:800;color:var(--fg);letter-spacing:0;text-transform:none;font-size:14px;margin-left:6px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button,.btn{font:inherit;font-weight:800;font-size:14px;border:1px solid var(--line);background:#1f2430;color:var(--fg);padding:6px 10px;border-radius:10px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#08101f}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn:hover{border-color:var(--accent)}
+.btn:focus-visible,.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.status{font-size:14px;color:var(--muted);background:#11141b;border-radius:10px;padding:10px 12px}
+.status b{color:var(--fg)}
+kbd{background:#262b37;border-radius:4px;padding:1px 5px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <main>
+    <h1>Simulador del panel</h1>
+    <p class="sub">Pantalla de Habitación con el robot. Duerme de 23:00 a 8:00. Pulsa la pantalla para tocarla (o <kbd>Espacio</kbd>); mantén pulsado más de 1 s para acariciarlo.</p>
+    <div class="bezel"><canvas id="scr" width="960" height="720" aria-label="Pantalla simulada 320x240"></canvas></div>
+  </main>
+  <aside class="side">
+    <div class="row"><label for="hour">Hora <span class="val" id="hourVal"></span></label>
+      <input type="range" id="hour" min="0" max="1439" step="5">
+      <div class="seg" id="hourQuick">
+        <button type="button" data-m="660">11:00</button><button type="button" data-m="1290">21:30</button>
+        <button type="button" data-m="1379">22:59</button><button type="button" data-m="120">02:00</button>
+        <button type="button" data-m="-1" id="realTime">Hora real</button>
+      </div></div>
+    <div class="row"><label for="temp">Temperatura habitación <span class="val" id="tempVal"></span></label>
+      <input type="range" id="temp" min="10" max="35" step="1" value="22"></div>
+    <div class="row"><label for="hum">Humedad <span class="val" id="humVal"></span></label>
+      <input type="range" id="hum" min="15" max="90" step="1" value="48"></div>
+    <div class="row"><span class="lab">Tiempo fuera</span>
+      <div class="seg" id="wx">
+        <button type="button" data-c="0" aria-pressed="false">Despejado</button>
+        <button type="button" data-c="2" aria-pressed="true">Poco nuboso</button>
+        <button type="button" data-c="3" aria-pressed="false">Nublado</button>
+        <button type="button" data-c="61" aria-pressed="false">Lluvia</button>
+        <button type="button" data-c="71" aria-pressed="false">Nieve</button>
+        <button type="button" data-c="-1" aria-pressed="false">Sin datos</button>
+      </div></div>
+    <div class="row"><span class="lab">Acciones</span>
+      <div class="btns">
+        <button type="button" class="btn" id="tap">Tocar</button>
+        <button type="button" class="btn" id="pet">Acariciar</button>
+        <button type="button" class="btn" id="task">Nueva tarea</button>
+        <button type="button" class="btn" id="act">Siguiente acción</button>
+      </div></div>
+    <div class="status" id="status"></div>
+  </aside>
+</div>
+
+<script>
+(() => {
+// ---------------- constants (config.h) ----------------
+const SLEEP_START_H=23, SLEEP_END_H=8, NIGHT_WAKE_MS=10000, PET_MS=2000;
+const BLINK_EVERY_MS=4000, BLINK_LEN_MS=140, TOAST_MS=6000, LONG_MS=1000;
+const CAT_REST_MIN_MS=2500, CAT_REST_MAX_MS=7000, CAT_WALK_PX_PER_S=28, CAT_WALK_MIN_PX=30;
+const DUR={LOOK:2200,GROOM:2600,YAWN:1600,STRETCH:1800,HOP:700};
+const SW=320, SH=240, HEADER_H=26, MARGIN=8, ROOM_STRIP_Y=184, ROOM_FLOOR_Y=166;
+const CAT_W=100, CAT_H=94, ROOM_CAT_Y=88, BOT_MIN_X=8, BOT_MAX_X=186, CLOCK_CX=80;
+const WIN_CX=222, WIN_CY=96, WIN_R=58;
+
+// ---------------- colours (theme.h etc.) ----------------
+const C={BG:"#0b0d12",CARD:"#161a24",MUTED:"#6b7385",TEXT:"#e8e8e8",COLD:"#5ab0ff",OK:"#4fd18b",HOT:"#ff8a3d",
+  URGENT:"#ff5c5c",TIME:"#cfd3dc",DOT_OFF:"#2a3040",
+  WALL:"#0c1020",WALL_L:"#14192e",FLOOR:"#1a2036",SEAM:"#2a3352",SPACE:"#04060f",RIM:"#3b4460",BOLT:"#7a86a8",
+  STAR:"#ddddee",STAR_D:"#666688",PANEL:"#1f2742",LED_OFF:"#33405f",PLANET:"#b48cff",
+  METAL:"#c9d2e6",METAL_D:"#9aa6c2",METAL_L:"#e9eef8",SCREEN:"#1a2036",FLAME:"#7ad7ff",FLAME_C:"#e6f8ff",
+  HEART:"#ff6b8a",DROP:"#9fd6ff",ZZZ:"#8fa3ff",PAPER:"#f4f1e8",SHADOW:"#080b16",DOCK:"#2a3352",STEAM:"#d8dde8",SPARK:"#ffe86a"};
+const hx=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+// mix565(a,b,alpha): alpha 255 -> a, 0 -> b
+const mix=(a,b,al)=>{const A=hx(a),B=hx(b),t=al/255;return "#"+A.map((v,i)=>Math.round(v*t+B[i]*(1-t)).toString(16).padStart(2,"0")).join("");};
+
+// ---------------- canvas ----------------
+const cv=document.getElementById("scr"), g=cv.getContext("2d"); g.scale(3,3);
+const F=(w,s)=>`${w} ${s}px Nunito, ui-rounded, system-ui, sans-serif`;
+const circ=(x,y,r,c)=>{g.fillStyle=c;g.beginPath();g.arc(x,y,Math.max(r,.5),0,7);g.fill();};
+const ell=(x,y,rx,ry,c)=>{g.fillStyle=c;g.beginPath();g.ellipse(x,y,Math.max(rx,.5),Math.max(ry,.5),0,0,7);g.fill();};
+const rr=(x,y,w,h,r,c)=>{g.fillStyle=c;g.beginPath();g.roundRect(x,y,w,h,r);g.fill();};
+const rect=(x,y,w,h,c)=>{g.fillStyle=c;g.fillRect(x,y,w,h);};
+const tri=(a,b,c2,d,e,f,c)=>{g.fillStyle=c;g.beginPath();g.moveTo(a,b);g.lineTo(c2,d);g.lineTo(e,f);g.closePath();g.fill();};
+const line2=(x0,y0,x1,y1,c)=>{g.strokeStyle=c;g.lineWidth=2.2;g.lineCap="round";g.beginPath();g.moveTo(x0+.5,y0+.5);g.lineTo(x1+.5,y1+.5);g.stroke();};
+const text=(s,x,y,font,col,align="left")=>{g.font=font;g.fillStyle=col;g.textAlign=align;g.textBaseline="top";g.fillText(s,x,y);};
+const tw=(s,font)=>{g.font=font;return g.measureText(s).width;};
+
+// ---------------- state ----------------
+const st={simMin:660, real:false, temp:22, hum:48, wx:2};
+const cat={mood:"IDLE", since:0, wakeUntil:0};
+const beh={act:"SIT",since:0,dur:3000,x:110,fromX:110,toX:110,facing:1,look:0,rng:(Math.random()*2**32)>>>0||1};
+let toastUntil=0, toastText="";
+
+function hourMin(){ if(st.real){const d=new Date();return [d.getHours(),d.getMinutes()];} return [Math.floor(st.simMin/60),st.simMin%60]; }
+const isSleepHour=h=>SLEEP_START_H>SLEEP_END_H ? (h>=SLEEP_START_H||h<SLEEP_END_H) : (h>=SLEEP_START_H&&h<SLEEP_END_H);
+const comfort=()=>st.temp<18?"COLD":st.temp>25?"HOT":"OK";
+const comfortColor=c=>c==="COLD"?C.COLD:c==="HOT"?C.HOT:C.OK;
+const comfortWord=c=>c==="COLD"?"fresco":c==="HOT"?"calor":"bien";
+const humid=()=>st.hum>65?"HUMID":st.hum<30?"DRY":"OK";
+
+// cat_state.cpp
+function setMood(m,now){cat.mood=m;cat.since=now;}
+function catUpdate(sleepHour,now){
+  switch(cat.mood){
+    case "PETTED": if(now-cat.since>=PET_MS){ if(sleepHour){const s=cat.since;setMood("WOKEN",now);cat.wakeUntil=s+NIGHT_WAKE_MS;} else setMood("IDLE",now);} break;
+    case "WOKEN": if(now>=cat.wakeUntil) setMood(sleepHour?"SLEEPING":"IDLE",now); break;
+    case "IDLE": if(sleepHour) setMood("SLEEPING",now); break;
+    case "SLEEPING": if(!sleepHour) setMood("IDLE",now); break;
+  }
+}
+function catBlinking(now){ if(cat.mood!=="IDLE"&&cat.mood!=="WOKEN") return false; const t=now-cat.since; return t>=BLINK_EVERY_MS && (t%BLINK_EVERY_MS)<BLINK_LEN_MS; }
+
+// cat_behavior.cpp
+function rnd(){let x=beh.rng;x^=x<<13;x>>>=0;x^=x>>>17;x^=x<<5;x>>>=0;beh.rng=x||1;return beh.rng;}
+const rr2=(lo,hi)=>lo+rnd()%(hi-lo+1);
+function start(a,d,now){beh.act=a;beh.since=now;beh.dur=d;}
+function rest(now){start("SIT",rr2(CAT_REST_MIN_MS,CAT_REST_MAX_MS),now);}
+function pickNext(now,forced){
+  const r=forced!=null?forced:rnd()%100;
+  if(r<30){let to=rr2(BOT_MIN_X,BOT_MAX_X); if(Math.abs(to-beh.x)<CAT_WALK_MIN_PX) to=(beh.x-BOT_MIN_X>BOT_MAX_X-beh.x)?BOT_MIN_X:BOT_MAX_X;
+    beh.fromX=beh.x;beh.toX=to;beh.facing=to>beh.x?1:-1;start("WALK",Math.abs(to-beh.x)*1000/CAT_WALK_PX_PER_S,now);}
+  else if(r<52){beh.look=(rnd()&1)?1:-1;start("LOOK",DUR.LOOK,now);}
+  else if(r<68) start("GROOM",DUR.GROOM,now);
+  else if(r<80) start("YAWN",DUR.YAWN,now);
+  else if(r<90) start("STRETCH",DUR.STRETCH,now);
+  else start("HOP",DUR.HOP,now);
+}
+function behaviorTick(now,canAct){
+  if(!canAct){ if(beh.act!=="SIT") rest(now); else beh.since=now; return; }
+  const el=now-beh.since;
+  if(beh.act==="WALK"){const dist=Math.abs(beh.toX-beh.fromX), moved=Math.floor(el*CAT_WALK_PX_PER_S/1000);
+    if(moved>=dist){beh.x=beh.toX;rest(now);} else beh.x=beh.fromX+beh.facing*moved; return;}
+  if(el>=beh.dur){ if(beh.act==="SIT") pickNext(now); else rest(now); }
+}
+const phase=now=>beh.dur?Math.min(1,(now-beh.since)/beh.dur):1;
+
+// ---------------- room scene ----------------
+function planetColour(){const c=comfort();return c==="COLD"?C.COLD:c==="HOT"?C.HOT:C.PLANET;}
+function sceneStatic(night){
+  rect(0,HEADER_H,SW,ROOM_FLOOR_Y-HEADER_H,C.WALL);
+  rect(0,112,SW,1,C.WALL_L); rect(0,140,SW,1,C.WALL_L);
+  const cx=WIN_CX, cy=WIN_CY;
+  circ(cx,cy,WIN_R,C.SPACE);
+  for(let i=0;i<46;i++){const sx=(i*53+11)%(2*WIN_R)-WIN_R, sy=(i*37+5)%(2*WIN_R)-WIN_R;
+    if(sx*sx+sy*sy>(WIN_R-3)**2) continue; rect(cx+sx,cy+sy,1,1,i%4===0?C.STAR_D:C.STAR); if(i%9===0) rect(cx+sx+1,cy+sy,1,1,C.STAR);}
+  const pl=planetColour(), px=cx+14, py=cy+16, lit=night?mix(pl,"#000000",140):pl;
+  circ(px,py,25,lit); circ(px+8,py-7,24,mix(pl,"#000000",night?60:110)); circ(px-9,py-8,3,mix("#ffffff",lit,80));
+  const ring=mix(pl,"#ffffff",night?110:150); g.strokeStyle=ring; g.lineWidth=2; g.beginPath(); g.ellipse(px,py+.5,42,9,0,0,7); g.stroke();
+  if(!night){circ(cx-32,cy-28,5,"#ffe69a"); g.strokeStyle="#80734d"; g.lineWidth=1; g.beginPath(); g.arc(cx-32,cy-28,8,0,7); g.stroke();}
+  g.strokeStyle=C.RIM; g.lineWidth=6; g.beginPath(); g.arc(cx,cy,WIN_R+3,0,7); g.stroke();
+  for(let a=0;a<8;a++){const t=a*Math.PI/4; circ(cx+Math.round(Math.cos(t)*(WIN_R+3)),cy+Math.round(Math.sin(t)*(WIN_R+3)),2,C.BOLT);}
+  rr(291,104,22,56,4,C.PANEL);
+  rect(0,ROOM_FLOOR_Y,SW,ROOM_STRIP_Y-ROOM_FLOOR_Y,C.FLOOR); rect(0,ROOM_FLOOR_Y,SW,2,C.SEAM);
+  for(let x=0;x<SW;x+=32) rect(x,ROOM_FLOOR_Y+2,1,ROOM_STRIP_Y-ROOM_FLOOR_Y-2,C.SEAM);
+}
+function sceneAnim(now){
+  const on=[C.OK,C.COLD,C.OK,C.HOT], step=Math.floor(now/280)%8;
+  for(let i=0;i<8;i++){const col=i%2,row=i>>1,x=291+7+col*8,y=104+9+row*12;
+    const lit=(i===step)||((i+3)%8===step)||(i===7&&Math.floor(now/900)%2); circ(x,y,2,lit?on[i%4]:C.LED_OFF);}
+}
+const DAYS=["dom","lun","mar","mié","jue","vie","sáb"], MON=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+const WXW={0:"Despejado",2:"Poco nuboso",3:"Nublado",61:"Lluvia",71:"Nieve"};
+function roomClock(h,m){
+  rect(0,HEADER_H+1,WIN_CX-WIN_R-8,ROOM_CAT_Y-HEADER_H-1,C.WALL);
+  text(`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`,CLOCK_CX,30,F(800,46),C.TEXT,"center");
+  const d=new Date(), day=DAYS[d.getDay()], mon=MON[d.getMonth()], md=d.getDate(), t=st.wx>=0?{0:21,2:13,3:11,61:9,71:-1}[st.wx]:0;
+  const maxW=WIN_CX-WIN_R-8-2*MARGIN, f=F(800,15);
+  const cands = st.wx>=0 ? [`${day} ${md} ${mon} · ${t}° ${WXW[st.wx]}`,`${day} ${md} · ${t}° ${WXW[st.wx]}`,`${day} ${md} ${mon} · ${t}°`,`${day} ${md} · ${t}°`] : [`${day} ${md} ${mon}`];
+  const s=cands.find(c=>tw(c,f)<=maxW)||cands[cands.length-1];
+  text(s,CLOCK_CX,68,f,C.MUTED,"center");
+}
+
+// ---------------- robot (cat_draw.cpp) ----------------
+const bump=p=>Math.sin(p*Math.PI), hold=p=>p<.15?p/.15:p>.85?(1-p)/.15:1;
+function heart(x,y,s,c){circ(x-s,y,s,c);circ(x+s,y,s,c);tri(x-2*s,y+1,x+2*s,y+1,x,y+2*s+1,c);}
+function drop(x,y){tri(x-3,y+3,x+3,y+3,x,y-3,C.DROP);circ(x,y+4,3,C.DROP);}
+function drawAwake(ox,oy,now,p){
+  const glow=p.body, idle=cat.mood==="IDLE", act=idle?beh.act:"SIT", ph=p.phase, face=beh.facing>=0?1:-1, t=now;
+  let shiver=0; if(idle&&act==="SIT"&&p.comfort==="COLD") shiver=(Math.floor(t/70)%2)?1:-1;
+  const cx=ox+CAT_W/2+shiver; let lift=0, petPhase=0;
+  if(cat.mood==="PETTED"){const el=t-cat.since; petPhase=el>=PET_MS?1:el/PET_MS; lift=Math.round(6*Math.abs(Math.sin(petPhase*Math.PI*3)));}
+  else if(act==="HOP") lift=Math.round(6*bump(ph));
+  const bob=Math.round(2.5*Math.sin((t%1400)*(2*Math.PI/1400))), hy=oy+20+bob-lift, tilt=act==="WALK"?face*2:0;
+  ell(cx,oy+(ROOM_FLOOR_Y-ROOM_CAT_Y)+6,17-Math.floor(lift/2)-bob,3,C.SHADOW);
+  {let len=5+Math.floor(t/60)%3; if(act==="WALK"||act==="HOP"||cat.mood==="PETTED") len+=4; const fy=hy+60;
+   tri(cx-7,fy,cx+7,fy,cx-tilt,fy+len,C.FLAME); tri(cx-3,fy,cx+3,fy,cx-tilt,fy+len-4,C.FLAME_C);}
+  {const sp=act==="GROOM"?120:380, sway=Math.round(4*Math.sin(t/sp)), ax=cx+tilt+sway, ay=hy-8;
+   line2(cx+tilt,hy,ax,ay,C.METAL_D); circ(ax,ay,5,mix(glow,C.SCREEN,70)); circ(ax,ay,3,glow); rect(ax-1,ay-2,1,1,C.METAL_L);}
+  const stv=act==="STRETCH"?bump(ph):0;
+  {const sy=hy+44, down=14-Math.floor(26*stv); let lhx=cx-26-Math.floor(4*stv), lhy=sy+down, rhx=cx+26+Math.floor(4*stv), rhy=sy+down;
+   if(cat.mood==="PETTED") rhy=sy-8+Math.floor(4*Math.sin(t/90)); if(act==="WALK"){lhy-=face>0?4:0; rhy-=face<0?4:0;}
+   line2(cx-16,sy,lhx,lhy,C.METAL_D); line2(cx+15,sy,rhx,rhy,C.METAL_D); circ(lhx,lhy,4,C.METAL); circ(rhx,rhy,4,C.METAL);}
+  rr(cx-17+tilt/2,hy+38,34,22,9,C.METAL_D); rr(cx-15+tilt/2,hy+39,30,6,3,C.METAL);
+  {const pulse=.5+.5*Math.sin((t%1600)*(2*Math.PI/1600)); circ(cx+tilt/2,hy+50,5,mix(glow,C.METAL_D,120+135*pulse));}
+  const hxp=cx-24+tilt;
+  rr(hxp,hy,48,36,11,C.METAL); rr(hxp+3,hy+2,42,4,2,C.METAL_L); rr(hxp+6,hy+7,36,23,7,C.SCREEN);
+  circ(hxp-1,hy+18,3,C.METAL_D); circ(hxp+49,hy+18,3,C.METAL_D);
+  let pdx=0,pdy=0; if(act==="WALK") pdx=3*face; if(act==="LOOK"){pdx=Math.round(5*beh.look*hold(ph));pdy=-1;}
+  const ey=hy+12+pdy, exL=hxp+13+pdx, exR=hxp+27+pdx, sleepy=cat.mood==="WOKEN", lowBat=act==="YAWN";
+  if(cat.mood==="PETTED"){heart(exL+4,ey+3,2,C.HEART);heart(exR+4,ey+3,2,C.HEART);}
+  else if(act==="GROOM"){const sx=hxp+9+Math.floor((ph*7-Math.floor(ph*7))*28); rect(hxp+9,ey+4,30,2,mix(glow,C.SCREEN,90)); rect(sx,ey+1,3,8,glow);}
+  else if(lowBat){const on=Math.floor(t/250)%2===0; g.strokeStyle=glow; g.lineWidth=1; g.strokeRect(hxp+15.5,ey+.5,15,8); rect(hxp+31,ey+3,2,3,glow); if(on) rect(hxp+17,ey+2,3,5,C.URGENT);}
+  else if(p.blink||stv>.3){rect(exL,ey+4,8,2,glow);rect(exR,ey+4,8,2,glow);}
+  else if(sleepy){rr(exL,ey+3,8,5,2,glow);rr(exR,ey+3,8,5,2,glow);}
+  else{rr(exL,ey,8,10,3,glow);rr(exR,ey,8,10,3,glow);rect(exL+1,ey+1,2,2,C.METAL_L);rect(exR+1,ey+1,2,2,C.METAL_L);}
+  if(!lowBat&&act!=="GROOM"){ if(p.comfort==="HOT") circ(hxp+24+pdx/2,hy+25,2,glow); else rect(hxp+20+pdx/2,hy+25,8,1,mix(glow,C.SCREEN,160)); }
+  if(p.comfort==="COLD"){tri(hxp+2,hy+3,hxp+9,hy+1,hxp+3,hy+8,C.METAL_L);tri(hxp+46,hy+3,hxp+39,hy+1,hxp+45,hy+8,C.METAL_L);
+    if(Math.floor(t/700)%4===0){g.strokeStyle=C.DROP;g.lineWidth=1;g.beginPath();g.arc(hxp+52,hy+24,2,0,7);g.stroke();g.beginPath();g.arc(hxp+57,hy+20,1,0,7);g.stroke();}}
+  else if(p.comfort==="HOT"){for(let i=0;i<2;i++){const sp=((t+i*600)%1200)/1200; circ(hxp+10+i*28,hy-2-sp*12,2+sp*2,mix(C.STEAM,C.SCREEN,220*(1-sp)));}}
+  if(p.humid==="HUMID") drop(hxp+50,hy+4+Math.floor(t/150)%6);
+  if(p.humid==="DRY"&&Math.floor(t/400)%5===0){g.strokeStyle=C.SPARK;g.lineWidth=1;g.beginPath();g.moveTo(hxp-4,hy+30);g.lineTo(hxp-1,hy+26);g.lineTo(hxp-5,hy+25);g.stroke();}
+  if(p.envelope){const ex=cx-10, eyy=hy+44+Math.floor(t/300)%2; rect(ex,eyy,20,13,C.PAPER); g.strokeStyle=C.METAL_D; g.lineWidth=1; g.strokeRect(ex+.5,eyy+.5,19,12);
+    g.beginPath(); g.moveTo(ex,eyy); g.lineTo(ex+10,eyy+7); g.lineTo(ex+19,eyy); g.stroke(); circ(ex+10,eyy+7,2,C.HEART);}
+  if(cat.mood==="PETTED") heart(cx+34,oy+22-petPhase*14,3,C.HEART);
+}
+function drawAsleep(ox,oy,now,p){
+  const t=now, cx=ox+CAT_W/2, glow=mix(p.body,C.SCREEN,110), metal=mix(C.METAL,"#000000",150), metalD=mix(C.METAL_D,"#000000",150);
+  const dy=oy+(ROOM_FLOOR_Y-ROOM_CAT_Y);
+  rr(cx-30,dy-2,60,10,4,C.DOCK); const pulse=.5+.5*Math.sin((t%2000)*(2*Math.PI/2000)); rect(cx-20,dy+3,40,2,mix(C.OK,C.DOCK,80+175*pulse));
+  const hy=dy-48;
+  rr(cx-17,hy+34,34,16,8,metalD); circ(cx-21,hy+47,4,metal); circ(cx+21,hy+47,4,metal);
+  const hx=cx-21, hh=hy+4;
+  line2(hx+24,hh,hx+13,hh-3,metalD); circ(hx+12,hh-3,3,mix(metalD,C.SCREEN,120));
+  rr(hx,hh,48,34,11,metal);
+  const br=.5+.5*Math.sin((t%4000)*(2*Math.PI/4000));
+  rr(hx+6,hh+7,36,22,7,mix(glow,C.SCREEN,20+45*br));
+  g.strokeStyle=glow; g.lineWidth=2; g.lineCap="round";
+  for(let e=0;e<2;e++){const ex=hx+12+e*16, ey=hh+15; g.beginPath(); g.moveTo(ex,ey); g.lineTo(ex+2,ey+3); g.lineTo(ex+6,ey+3); g.lineTo(ex+8,ey); g.stroke();}
+  tri(hx+6,hh,hx+42,hh,hx+29,hh-21,"#4a5fc8"); tri(hx+24,hh-13,hx+33,hh-21,hx+50,hh-8,"#4a5fc8");
+  tri(hx+12,hh-6,hx+37,hh-6,hx+21,hh-11,"#8fa3ff"); tri(hx+37,hh-6,hx+33,hh-12,hx+21,hh-11,"#8fa3ff");
+  rr(hx+2,hh-3,44,6,3,"#e8ecf6"); circ(hx+51,hh-7,4,"#e8ecf6");
+  const lvl=Math.floor(t/600)%5; g.strokeStyle=C.OK; g.lineWidth=1; g.strokeRect(cx-46.5,hh+10.5,13,7); rect(cx-33,hh+12,2,4,C.OK);
+  for(let i=0;i<lvl;i++) rect(cx-45+i*2+Math.floor(i/2),hh+12,2,4,C.OK);
+  for(let i=0;i<3;i++){const zp=((t+i*1200)%3600)/3600, a=zp<.15?zp/.15:(1-zp)/.85;
+    text(zp<.5?"z":"Z",cx-44+zp*16,hh-8-zp*30,F(900,zp<.25?8:zp<.7?13:20),mix(C.ZZZ,C.SCREEN,a*255));}
+}
+
+// ---------------- header, strip, toast ----------------
+function header(){
+  rect(0,0,SW,HEADER_H,C.BG); const f=F(800,15), ty=4;
+  text("HABITACIÓN",MARGIN+2,ty,f,C.MUTED);
+  const c=comfortColor(comfort()), hb=` · ${st.hum}%`, rx=SW-MARGIN-2, w=tw(hb,f);
+  text(hb,rx-w,ty,f,C.MUTED); text(`${st.temp}°`,rx-w,ty,f,c,"right");
+}
+function toast(){
+  const acc=C.OK, bg=mix(acc,C.BG,70); rect(0,0,SW,HEADER_H,C.BG); rr(4,1,SW-8,HEADER_H-2,8,bg);
+  rr(12,9,13,9,1,acc); g.strokeStyle=bg; g.lineWidth=1; g.beginPath(); g.moveTo(13,10); g.lineTo(18,14); g.lineTo(24,10); g.stroke();
+  const f=F(800,15); text("Nueva tarea",32,4,f,acc); text(toastText,32+tw("Nueva tarea",f)+8,4,f,C.TEXT);
+}
+function strip(){
+  rect(0,ROOM_STRIP_Y,SW,SH-14-ROOM_STRIP_Y,C.BG); rr(MARGIN,186,SW-2*MARGIN,38,8,C.CARD);
+  const cf=comfort(), colW=(SW-2*MARGIN)/3;
+  const vals=[[`${st.temp}°`,comfortColor(cf)],[`${st.hum}%`,C.COLD],[comfortWord(cf),comfortColor(cf)]], lab=["TEMP","HUMEDAD","CONFORT"];
+  for(let i=0;i<3;i++){const x=MARGIN+i*colW+colW/2; text(vals[i][0],x,188,F(800,19),vals[i][1],"center"); text(lab[i],x,213,F(800,7.5),C.MUTED,"center");}
+  rect(0,SH-14,SW,14,C.BG); for(let i=0;i<2;i++) circ(160-7+14*i,SH-8,3,i===0?C.TIME:C.DOT_OFF);
+}
+
+// ---------------- frame ----------------
+const t0=performance.now();
+function frame(){
+  const now=Math.floor(performance.now()-t0);
+  const [h,m]=hourMin(); const sleepHour=isSleepHour(h);
+  catUpdate(sleepHour,now);
+  const toastOn=now<toastUntil;
+  behaviorTick(now,cat.mood==="IDLE"&&!toastOn);
+  const night=h<7||h>=20;
+  sceneStatic(night); sceneAnim(now); roomClock(h,m);
+  const p={body:comfortColor(comfort()),comfort:comfort(),humid:humid(),blink:catBlinking(now),phase:phase(now),envelope:toastOn&&cat.mood!=="SLEEPING"};
+  if(cat.mood==="SLEEPING") drawAsleep(beh.x,ROOM_CAT_Y,now,p); else drawAwake(beh.x,ROOM_CAT_Y,now,p);
+  strip(); if(toastOn) toast(); else header();
+  status(h,m,now);
+  requestAnimationFrame(frame);
+}
+const ACT={SIT:"descansa",WALK:"vuela",LOOK:"mira a un lado",GROOM:"escanea",YAWN:"batería baja",STRETCH:"se estira",HOP:"bota"};
+const MOOD={IDLE:"despierto",SLEEPING:"durmiendo (cargando)",WOKEN:"despertado un momento",PETTED:"contento (acariciado)"};
+let lastStatus="";
+function status(h,m,now){
+  let s=`<b>${MOOD[cat.mood]}</b>`; if(cat.mood==="IDLE") s+=` · ${ACT[beh.act]}`;
+  if(cat.mood==="WOKEN") s+=` · vuelve a dormir en ${Math.max(0,Math.ceil((cat.wakeUntil-now)/1000))} s`;
+  s+=`<br>Duerme de ${SLEEP_START_H}:00 a ${SLEEP_END_H}:00 · ahora ${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  if(s!==lastStatus){document.getElementById("status").innerHTML=s; lastStatus=s;}
+}
+
+// ---------------- input ----------------
+const now=()=>Math.floor(performance.now()-t0);
+function tap(){ if(cat.mood==="SLEEPING"){setMood("WOKEN",now());cat.wakeUntil=now()+NIGHT_WAKE_MS;} }
+function pet(){ setMood("PETTED",now()); }
+let downAt=0, longFired=false, timer=0;
+function press(){downAt=now();longFired=false;clearTimeout(timer);timer=setTimeout(()=>{longFired=true;pet();},LONG_MS);}
+function release(){clearTimeout(timer); if(!longFired&&downAt) tap(); downAt=0;}
+cv.addEventListener("pointerdown",e=>{e.preventDefault();press();});
+cv.addEventListener("pointerup",release); cv.addEventListener("pointerleave",()=>{clearTimeout(timer);downAt=0;});
+addEventListener("keydown",e=>{if(e.code==="Space"&&!e.repeat&&e.target===document.body){e.preventDefault();press();}});
+addEventListener("keyup",e=>{if(e.code==="Space"&&e.target===document.body){e.preventDefault();release();}});
+document.getElementById("tap").onclick=tap;
+document.getElementById("pet").onclick=pet;
+const TASKS=["Comprar leche","Llamar al dentista","Sacar la basura","Regar las plantas","Pagar la luz"];
+document.getElementById("task").onclick=()=>{toastText=TASKS[Math.floor(Math.random()*TASKS.length)];toastUntil=now()+TOAST_MS;};
+document.getElementById("act").onclick=()=>{ if(cat.mood!=="IDLE") return; pickNext(now()); };
+
+const hour=document.getElementById("hour"), hourVal=document.getElementById("hourVal");
+function syncHour(){ const [h,m]=hourMin(); hourVal.textContent=`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}${st.real?" (real)":""}`; hour.value=h*60+m;
+  document.getElementById("realTime").setAttribute("aria-pressed",st.real?"true":"false"); }
+hour.oninput=()=>{st.real=false;st.simMin=+hour.value;syncHour();};
+document.getElementById("hourQuick").onclick=e=>{const b=e.target.closest("button"); if(!b) return; const v=+b.dataset.m; if(v<0) st.real=true; else {st.real=false;st.simMin=v;} syncHour();};
+setInterval(syncHour,5000); syncHour();
+for(const [id,key,suf] of [["temp","temp","°"],["hum","hum","%"]]){const el=document.getElementById(id),v=document.getElementById(id+"Val");
+  const f=()=>{st[key]=+el.value;v.textContent=el.value+suf;}; el.oninput=f; f();}
+document.getElementById("wx").onclick=e=>{const b=e.target.closest("button"); if(!b) return; st.wx=+b.dataset.c;
+  document.querySelectorAll("#wx button").forEach(x=>x.setAttribute("aria-pressed",x===b?"true":"false"));};
+
+rest(0);
+(document.fonts?document.fonts.ready:Promise.resolve()).then(()=>requestAnimationFrame(frame));
+})();
+</script>
+</body>
+</html>

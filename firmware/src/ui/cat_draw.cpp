@@ -34,6 +34,9 @@ static constexpr uint16_t C_SHADOW  = rgb565(0x08, 0x0b, 0x16);
 static constexpr uint16_t C_DOCK    = rgb565(0x2a, 0x33, 0x52);
 static constexpr uint16_t C_STEAM   = rgb565(0xd8, 0xdd, 0xe8);
 static constexpr uint16_t C_SPARK   = rgb565(0xff, 0xe8, 0x6a);
+static constexpr uint16_t C_CAP     = rgb565(0x4a, 0x5f, 0xc8);
+static constexpr uint16_t C_CAP_L   = rgb565(0x8f, 0xa3, 0xff);
+static constexpr uint16_t C_CAP_B   = rgb565(0xe8, 0xec, 0xf6);
 
 static const float PI_F = 3.14159265f;
 // Floor line inside the sprite (shadow / dock sit here).
@@ -242,33 +245,56 @@ static void drawAsleep(TFT_eSPI& g, const CatPose& p, int ox, int oy) {
     float pulse = 0.5f + 0.5f * sinf((float)(t % 2000) * (2.0f * PI_F / 2000.0f));
     g.fillRect(cx - 20, dy + 3, 40, 2, mix565(C_OK, C_DOCK, (uint8_t)(80 + 175 * pulse)));
 
-    // Robot sitting on the dock: body, head, antenna drooped.
-    const int hy = dy - 50;
-    g.fillRoundRect(cx - 17, hy + 32, 34, 18, 8, metalD);
-    g.fillCircle(cx - 22, hy + 44, 4, metal);
-    g.fillCircle(cx + 22, hy + 44, 4, metal);
-    line2(g, cx, hy, cx + 9, hy - 6, metalD);
-    g.fillCircle(cx + 10, hy - 7, 3, glow);
-    g.fillRoundRect(cx - 24, hy, 48, 34, 11, metal);
-    g.fillRoundRect(cx - 18, hy + 6, 36, 22, 7, C_SCREEN);
-    g.fillRect(cx - 11, hy + 17, 8, 2, glow);          // closed eyes
-    g.fillRect(cx + 3, hy + 17, 8, 2, glow);
+    // Robot slumped on the dock: body, limp arms.
+    const int hy = dy - 48;
+    g.fillRoundRect(cx - 17, hy + 34, 34, 16, 8, metalD);
+    g.fillCircle(cx - 21, hy + 47, 4, metal);
+    g.fillCircle(cx + 21, hy + 47, 4, metal);
 
-    // Battery filling up, next to the head.
+    // Head drooped forward and to the side.
+    const int hx = cx - 21, hh = hy + 4;
+    line2(g, hx + 24, hh, hx + 13, hh - 3, metalD);              // antenna flopped over
+    g.fillCircle(hx + 12, hh - 3, 3, mix565(metalD, C_SCREEN, 120));   // tip off
+    g.fillRoundRect(hx, hh, 48, 34, 11, metal);
+
+    // Screen "breathes": slow dim glow.
+    float br = 0.5f + 0.5f * sinf((float)(t % 4000) * (2.0f * PI_F / 4000.0f));
+    g.fillRoundRect(hx + 6, hh + 7, 36, 22, 7, mix565(glow, C_SCREEN, (uint8_t)(20 + 45 * br)));
+
+    // Closed eyes: little "u" arcs.
+    for (int e = 0; e < 2; e++) {
+        int ex = hx + 12 + e * 16, ey = hh + 15;
+        for (int k = 0; k < 2; k++) {
+            g.drawLine(ex, ey + k, ex + 2, ey + 3 + k, glow);
+            g.drawLine(ex + 2, ey + 3 + k, ex + 6, ey + 3 + k, glow);
+            g.drawLine(ex + 6, ey + 3 + k, ex + 8, ey + k, glow);
+        }
+    }
+
+    // Night cap: cone on the head whose tip flops over to the right, one
+    // stripe, white band and pompom.
+    g.fillTriangle(hx + 6, hh, hx + 42, hh, hx + 29, hh - 21, C_CAP);
+    g.fillTriangle(hx + 24, hh - 13, hx + 33, hh - 21, hx + 50, hh - 8, C_CAP);
+    g.fillTriangle(hx + 12, hh - 6, hx + 37, hh - 6, hx + 21, hh - 11, C_CAP_L);
+    g.fillTriangle(hx + 37, hh - 6, hx + 33, hh - 12, hx + 21, hh - 11, C_CAP_L);
+    g.fillRoundRect(hx + 2, hh - 3, 44, 6, 3, C_CAP_B);
+    g.fillCircle(hx + 51, hh - 7, 4, C_CAP_B);
+
+    // Battery filling up, left of the head.
     int lvl = (int)((t / 600) % 5);
-    g.drawRect(cx + 28, hy + 4, 14, 8, C_OK);
-    g.fillRect(cx + 42, hy + 6, 2, 4, C_OK);
-    for (int i = 0; i < lvl; i++) g.fillRect(cx + 30 + i * 2 + i / 2, hy + 6, 2, 4, C_OK);
+    g.drawRect(cx - 47, hh + 10, 14, 8, C_OK);
+    g.fillRect(cx - 33, hh + 12, 2, 4, C_OK);
+    for (int i = 0; i < lvl; i++) g.fillRect(cx - 45 + i * 2 + i / 2, hh + 12, 2, 4, C_OK);
 
-    // "Zzz": three letters on a 3 s loop, rising and fading.
-    const uint32_t ZP = 3000;
+    // "Zzz": three letters on a 3.6 s loop, growing, rising and fading.
+    const uint32_t ZP = 3600;
     for (int i = 0; i < 3; i++) {
         float zp = (float)((t + i * (ZP / 3)) % ZP) / ZP;
         float a  = zp < 0.15f ? zp / 0.15f : (1.0f - zp) / 0.85f;
-        int zx = cx - 36 + (int)(zp * 14.0f);
-        int zy = oy + 30 - (int)(zp * 28.0f);
+        int zx = cx - 44 + (int)(zp * 16.0f);
+        int zy = hh - 8 - (int)(zp * 30.0f);
         g.setTextColor(mix565(C_ZZZ, C_SCREEN, (uint8_t)(a * 255.0f)));
-        g.drawString(zp < 0.66f ? "z" : "Z", zx, zy, zp < 0.33f ? 1 : 2);
+        g.drawString(zp < 0.5f ? "z" : "Z", zx, zy, zp < 0.25f ? 1 : (zp < 0.7f ? 2 : 4));
     }
 }
 
