@@ -121,17 +121,26 @@ async def test_nowplaying_nothing(client):
 
 
 @pytest.mark.asyncio
-async def test_nowplaying_text_is_ascii(client):
-    lf = {**LF, "title": "Canción – ñu", "artist": "céro"}
+async def test_nowplaying_text_keeps_latin1(client):
+    lf = {**LF, "title": "Canción – ñu 🔥", "artist": "céro"}
     with patch("main.get_now_playing", AsyncMock(return_value={"is_playing": False})), \
          patch("main.lastfm.get_now_playing", AsyncMock(return_value=lf)):
         np = (await client.get("/nowplaying", headers=KEY)).json()
-    assert np["title"] == "Cancion - nu" and np["artist"] == "cero"
+    assert np["title"] == "Canción - ñu " and np["artist"] == "céro"
 
 
 @pytest.mark.asyncio
-async def test_tasks_text_is_ascii(client):
-    tasks = [Task(3, "Llamar a Lucía mañana", "normal", "pending", datetime.now().isoformat(), "")]
+async def test_tasks_text_keeps_latin1(client):
+    tasks = [Task(3, "¿Llamar a Lucía mañana? 😀", "normal", "pending", datetime.now().isoformat(), "")]
     with patch("main.get_all_tasks", AsyncMock(return_value=tasks)):
         r = await client.get("/tasks", headers=KEY)
-    assert r.json()[0]["text"] == "Llamar a Lucia manana"
+    assert r.json()[0]["text"] == "¿Llamar a Lucía mañana? "
+
+
+@pytest.mark.asyncio
+async def test_weather_endpoint(client):
+    with patch("main.weather.get_weather", AsyncMock(return_value={"ok": True, "temp": 14.2, "code": 3, "is_day": True})):
+        r = await client.get("/weather", headers=KEY)
+    assert r.status_code == 200 and r.json()["code"] == 3
+    r = await client.get("/weather")
+    assert r.status_code in (401, 403, 422)

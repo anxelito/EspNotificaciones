@@ -49,6 +49,53 @@ bool clockGetHM(int* hour, int* minute) {
     return true;
 }
 
+bool clockGetDate(int* wday, int* mday, int* mon) {
+    time_t now;
+    struct tm tm;
+    time(&now);
+    localtime_r(&now, &tm);
+    if (tm.tm_year <= (2016 - 1900)) return false;
+    if (wday) *wday = tm.tm_wday;
+    if (mday) *mday = tm.tm_mday;
+    if (mon)  *mon  = tm.tm_mon;
+    return true;
+}
+
+// API_URL ends in "/tasks"; the weather endpoint sits next to it.
+static String weatherUrl() {
+    String u = API_URL;
+    int i = u.lastIndexOf('/');
+    return (i > 8 ? u.substring(0, i) : u) + "/weather";
+}
+
+bool fetchWeather(Weather* w) {
+    if (WiFi.status() != WL_CONNECTED) return false;
+
+    WiFiClientSecure client;
+    prepClient(client);
+    HTTPClient http;
+    prepHttp(http);
+    http.begin(client, weatherUrl());
+    http.addHeader("X-API-Key", API_KEY);
+
+    int code = http.GET();
+    if (code != 200) {
+        Serial.printf("[net] weather GET failed: %d\n", code);
+        http.end();
+        return false;
+    }
+    String payload = http.getString();
+    http.end();
+
+    JsonDocument doc;
+    if (deserializeJson(doc, payload) != DeserializationError::Ok) return false;
+    if (!(doc["ok"] | false)) return false;           // backend has no location set
+    w->ok   = true;
+    w->code = doc["code"] | 0;
+    w->temp = doc["temp"] | 0.0f;
+    return true;
+}
+
 int fetchTasks(TaskItem* tasks) {
     if (WiFi.status() != WL_CONNECTED) return -1;
 
@@ -123,6 +170,12 @@ bool fetchNowPlaying(NowPlaying* np) {
     strlcpy(np->artist,      doc["artist"]      | "", sizeof(np->artist));
     strlcpy(np->album,       doc["album"]       | "", sizeof(np->album));
     strlcpy(np->artwork_url, doc["artwork_url"] | "", sizeof(np->artwork_url));
+    const char* acc = doc["accent"] | "";            // "#rrggbb"
+    np->hasAccent = strlen(acc) == 7 && acc[0] == '#';
+    if (np->hasAccent) {
+        uint32_t rgb = strtoul(acc + 1, nullptr, 16);
+        np->accent = (uint16_t)(((rgb >> 8) & 0xF800) | ((rgb >> 5) & 0x07E0) | ((rgb >> 3) & 0x001F));
+    }
 
     return true;
 }

@@ -19,6 +19,7 @@ from bot import build_application
 from spotify import get_now_playing
 import lastfm
 import artwork
+import weather
 
 _bot_app = None
 
@@ -53,7 +54,7 @@ async def tasks_endpoint(_=Depends(verify_api_key)):
     out = []
     for t in tasks:
         d = t.to_dict()
-        d["text"] = _ascii_fold(d.get("text") or "")
+        d["text"] = _panel_text(d.get("text") or "")
         out.append(d)
     return out
 
@@ -68,20 +69,36 @@ async def nowplaying_endpoint(_=Depends(verify_api_key)):
         if not lf.get("is_playing"):
             return np
         np = lf
-    np = _ascii_text(np)
+    np = _panel_np_text(np)
     np["artwork_url"] = await artwork.panel_url(np.get("artwork_url") or "")
+    if np["artwork_url"] and artwork.get_accent():
+        np["accent"] = artwork.get_accent()
     return np
 
 
-def _ascii_fold(text: str) -> str:
-    """'céro – Ñu' -> 'cero - Nu': the panel's fonts are ASCII-only."""
-    text = text.replace("–", "-").replace("—", "-").replace("’", "'")
-    decomposed = unicodedata.normalize("NFKD", text)
-    return decomposed.encode("ascii", "ignore").decode("ascii")
+@app.get("/weather")
+async def weather_endpoint(_=Depends(verify_api_key)):
+    return await weather.get_weather()
 
 
-def _ascii_text(np: dict) -> dict:
-    return {k: _ascii_fold(v) if k in ("title", "artist", "album") and isinstance(v, str) else v
+def _panel_text(text: str) -> str:
+    """Keep what the panel's fonts can draw (ASCII + Latin-1: accents, ñ, ¿,
+    ¡, °, ·); fold anything else ('–' -> '-', 'ł' -> 'l', emoji dropped)."""
+    text = (text.replace("–", "-").replace("—", "-")
+                .replace("‘", "'").replace("’", "'")
+                .replace("“", '"').replace("”", '"')
+                .replace("…", "...").replace(" ", " "))
+    out = []
+    for ch in text:
+        if ord(ch) <= 0xFF:
+            out.append(ch)
+        else:
+            out.append(unicodedata.normalize("NFKD", ch).encode("ascii", "ignore").decode("ascii"))
+    return "".join(out)
+
+
+def _panel_np_text(np: dict) -> dict:
+    return {k: _panel_text(v) if k in ("title", "artist", "album") and isinstance(v, str) else v
             for k, v in np.items()}
 
 

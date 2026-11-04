@@ -21,6 +21,7 @@ struct CatPose {
     int8_t    facing   = 1;   // -1 left, +1 right
     int8_t    look     = 0;   // LOOK direction
     Comfort   comfort  = Comfort::UNKNOWN;  // cold: shiver, hot: pant
+    bool      envelope = false;  // holding a letter (new task just arrived)
 };
 
 // Creates the CAT_W x CAT_H 16-bit sprite once (~18 KB). If allocation fails,
@@ -28,4 +29,5 @@ struct CatPose {
 // true if the sprite exists.
 bool catDrawInit();
 // Renders one frame into the sprite and pushes it with its top-left at (x,y).
+// The room scene behind the cat (room_scene) is painted into the sprite first.
 void catDraw(const CatPose& p, int x, int y);

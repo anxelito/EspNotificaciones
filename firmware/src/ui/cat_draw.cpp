@@ -9,6 +9,7 @@
 #include <math.h>
 #include "theme.h"
 #include "../display.h"
+#include "room_scene.h"
 
 static TFT_eSprite spr(&tft);
 static bool        haveSprite = false;
@@ -20,6 +21,9 @@ static constexpr uint16_t C_ZZZ    = rgb565(0x8f, 0xa3, 0xff);
 static constexpr uint16_t C_WHITE  = 0xFFFF;
 static constexpr uint16_t C_SHADOW = 0x0000;
 static constexpr uint16_t C_EYE    = C_BG;
+static constexpr uint16_t C_BED    = rgb565(0x5a, 0x3d, 0x6e);
+static constexpr uint16_t C_BED_L  = rgb565(0x7d, 0x58, 0x96);
+static constexpr uint16_t C_PAPER  = rgb565(0xf4, 0xf1, 0xe8);
 
 static const float PI_F = 3.14159265f;
 
@@ -214,6 +218,16 @@ static void drawAwake(TFT_eSPI& g, const CatPose& p, int ox, int oy) {
     if (p.humid == HumidMood::HUMID) {          // sweat drop sliding down
         sweatDrop(g, cx + 24, by + 24 + (int)((p.nowMs / 150) % 6));
     }
+    if (p.envelope) {                           // letter held against the chest
+        int ex = cx - 10, ey = by + 58 + (int)((p.nowMs / 300) % 2);
+        g.fillRect(ex, ey, 20, 13, C_PAPER);
+        g.drawRect(ex, ey, 20, 13, dark);
+        g.drawLine(ex, ey, ex + 10, ey + 7, dark);
+        g.drawLine(ex + 19, ey, ex + 10, ey + 7, dark);
+        g.fillCircle(ex + 10, ey + 7, 2, C_HEART);
+        g.fillEllipse(lpX + 4, ey + 11, 6, 4, light);   // paws holding it
+        g.fillEllipse(rpX - 4, ey + 11, 6, 4, light);
+    }
     if (p.mood == CatMood::PETTED) {            // heart floating up
         heart(g, cx + 38, oy + 22 - (int)(petPhase * 14.0f), C_HEART);
     }
@@ -234,7 +248,9 @@ static void drawAsleep(TFT_eSPI& g, const CatPose& p, int ox, int oy) {
     // Slow breathing: the ball swells by 1 px.
     int ry = sinf((float)(p.nowMs % 4000) * (2.0f * PI_F / 4000.0f)) > 0 ? 14 : 13;
 
-    g.fillEllipse(cx + 2, oy + 80, 34, 3, C_SHADOW);
+    // Cushion bed under the ball.
+    g.fillEllipse(cx + 3, oy + 79, 46, 8, C_BED);
+    g.fillEllipse(cx + 3, oy + 76, 42, 5, C_BED_L);
     g.fillEllipse(cx + 4, cy, 34, ry, body);
 
     // Head tucked on the left, little ears.
@@ -282,7 +298,9 @@ void catDraw(const CatPose& p, int x, int y) {
     TFT_eSPI& g = haveSprite ? (TFT_eSPI&)spr : tft;
     int ox = haveSprite ? 0 : x;
     int oy = haveSprite ? 0 : y;
-    g.fillRect(ox, oy, CAT_W, CAT_H, C_BG);
+    // Room behind the cat (wall, floor, rug, plant), so it never shows a box.
+    if (haveSprite) drawSceneLower(spr, x, y);
+    else            sceneRepaintRect(x, y, CAT_W, CAT_H);
     if (p.mood == CatMood::SLEEPING) drawAsleep(g, p, ox, oy);
     else                             drawAwake(g, p, ox, oy);
     if (haveSprite) spr.pushSprite(x, y);

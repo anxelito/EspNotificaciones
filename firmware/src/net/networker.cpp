@@ -111,6 +111,8 @@ static void workerTask(void*) {
     connectWiFi();                             // blocks core 0 only (≤10 s)
 
     uint32_t lastTasks = 0, lastNP = 0, lastRetry = millis(), lastStackLog = 0;
+    uint32_t lastWeather = 0;
+    bool weatherDue = true;
     bool wasUp = false;
 
     for (;;) {
@@ -148,6 +150,20 @@ static void workerTask(void*) {
             bool newSong = pollNowPlaying();
             publishSnapshot();                 // progress changes every poll
             if (newSong) downloadArtwork();    // after publish: UI shows text first
+        }
+
+        if (weatherDue || (now - lastWeather) >= WEATHER_POLL_MS) {
+            lastWeather = now;
+            Weather w = {};
+            if (fetchWeather(&w)) {
+                w_snap.weather = w;
+                publishSnapshot();
+                weatherDue = false;
+            } else {
+                // Retry in a minute (keep showing the last good reading).
+                lastWeather = now - WEATHER_POLL_MS + WEATHER_RETRY_MS;
+                weatherDue = false;
+            }
         }
 
         if ((now - lastStackLog) >= 60000UL) {

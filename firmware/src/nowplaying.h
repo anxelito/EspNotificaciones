@@ -11,5 +11,7 @@ struct NowPlaying {
     char  artwork_url[256];
     int   progress_ms;
     int   duration_ms;
+    bool     hasAccent;   // backend sent the cover's main colour
+    uint16_t accent;      // RGB565
 };
 

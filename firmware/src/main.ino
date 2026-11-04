@@ -22,6 +22,7 @@
 #include "ui/screen_music.h"
 #include "ui/screen_room.h"
 #include "ui/cat_draw.h"
+#include "ui/room_scene.h"
 #include <SPIFFS.h>
 #include <WiFi.h>
 
@@ -41,41 +42,69 @@ static NetSnapshot     snap;             // latest copy from the worker
 // --- what is currently on the glass -----------------------------------------
 // Everything the header shows; redraw it only when this changes.
 struct HeaderKey {
-    char    title[24];
-    bool    online, timeKnown, playing, haveRoom;
-    int     hour, minute, temp, hum;
-    Comfort comfort;                     // temp colour can change without int change
+    char     title[32];
+    bool     online, timeKnown, playing, haveRoom;
+    int      hour, minute, temp, hum;
+    Comfort  comfort;                    // temp colour can change without int change
+    uint16_t bg;                         // music screen tints the header
+};
+
+// What the room's clock/info line shows; redraw it only when this changes.
+struct ClockKey {
+    bool timeKnown;
+    int  hour, minute, wday, mday, mon;
+    bool weatherOk;
+    int  code, temp;
 };
 
 static bool       drawnOnce       = false;
 static Screen     drawnScreen     = Screen::ROOM;
 static int        drawnDotsCount  = 0;
+static uint16_t   drawnDotsBg     = 0;
 static HeaderKey  drawnHeader;
+static bool       headerDirty     = true;
+static ClockKey   drawnClock;
 static uint32_t   lastCatFrame    = 0;
+static uint32_t   lastWindowFrame = 0;
+static uint32_t   lastPulse       = 0;
 static int        drawnBacklight  = -1;
 static TaskItem   drawnTasks[MAX_TASKS];
 static int        drawnTaskCount  = -1;
 static NowPlaying drawnNp;
 static uint32_t   drawnSongVer    = 0;
 
+// "Nueva tarea" toast over the header.
+static int        maxTaskIdSeen   = -1;  // -1 until the first online task list
+static bool       toastOn         = false;
+static bool       toastDrawn      = false;
+static uint32_t   toastUntil      = 0;
+static char       toastText[64];
+
 // Local artwork copy (core 1 only; decoded by TJpg on this core)
 static uint8_t*   artworkBuf      = nullptr;
 static int        artworkLen      = 0;
 static uint32_t   artworkVersion  = 0;   // songVersion artworkBuf belongs to
 
-static int pendingCount() {
+static int doneCount() {
     int n = 0;
     for (int i = 0; i < snap.taskCount; i++)
-        if (strcmp(snap.tasks[i].status, "pending") == 0) n++;
+        if (strcmp(snap.tasks[i].status, "done") == 0) n++;
     return n;
+}
+
+static uint16_t screenBg() {
+    return ui.screen == Screen::MUSIC ? musicBg(snap.np) : C_BG;
 }
 
 static void buildHeaderKey(HeaderKey& k, bool timeKnown, int hour, int minute, bool fresh) {
     memset(&k, 0, sizeof(k));
     switch (ui.screen) {
-        case Screen::ROOM:  strlcpy(k.title, "HABITACION", sizeof(k.title)); break;
+        case Screen::ROOM:  strlcpy(k.title, "HABITACIÓN", sizeof(k.title)); break;
         case Screen::TASKS:
-            snprintf(k.title, sizeof(k.title), "TAREAS " TITLE_DOT " %d", pendingCount());
+            if (snap.taskCount > 0)
+                snprintf(k.title, sizeof(k.title), "TAREAS · %d/%d", doneCount(), snap.taskCount);
+            else
+                strlcpy(k.title, "TAREAS", sizeof(k.title));
             break;
         case Screen::MUSIC: strlcpy(k.title, "SONANDO", sizeof(k.title)); break;
     }
@@ -90,6 +119,28 @@ static void buildHeaderKey(HeaderKey& k, bool timeKnown, int hour, int minute, b
         k.hum     = (int)lroundf(room.humidity);
         k.comfort = classifyTemp(room.tempC);
     }
+    k.bg = screenBg();
+}
+
+static void buildScene(SceneInfo& s, bool timeKnown, int hour, int minute) {
+    memset(&s, 0, sizeof(s));
+    s.timeKnown = timeKnown && clockGetDate(&s.wday, &s.mday, &s.mon);
+    s.hour = hour;
+    s.minute = minute;
+    s.weatherOk   = snap.weather.ok;
+    s.weatherCode = snap.weather.code;
+    s.outTemp     = snap.weather.temp;
+}
+
+static void buildClockKey(ClockKey& k, const SceneInfo& s) {
+    memset(&k, 0, sizeof(k));
+    k.timeKnown = s.timeKnown;
+    if (s.timeKnown) {
+        k.hour = s.hour; k.minute = s.minute;
+        k.wday = s.wday; k.mday = s.mday; k.mon = s.mon;
+    }
+    k.weatherOk = s.weatherOk;
+    if (s.weatherOk) { k.code = s.weatherCode; k.temp = (int)lroundf(s.outTemp); }
 }
 
 static bool artworkReady() {
@@ -97,7 +148,7 @@ static bool artworkReady() {
 }
 
 // Copy the artwork once per song, only after the worker has published the
-// artwork for the current songVersion (cheap peek first, no 8 KB copy).
+// artwork for the current songVersion (cheap peek first, no big copy).
 static bool pickUpArtwork() {
     if (!artworkBuf || artworkVersion == snap.songVersion) return false;
     if (netArtworkVersion() != snap.songVersion) return false;
@@ -109,13 +160,34 @@ static bool pickUpArtwork() {
     return n > 0;
 }
 
-// Cat may roam horizontally across the room area (sprite left x range).
-static const int CAT_MIN_X = MARGIN;
-static const int CAT_MAX_X = SCREEN_W - MARGIN - CAT_W;
+// New pending task (id above any seen before) -> toast. The first task list
+// after boot only sets the baseline.
+static void checkNewTask(uint32_t now) {
+    if (!snap.online || snap.taskCount < 0) return;
+    int maxId = 0;
+    const TaskItem* newest = nullptr;
+    for (int i = 0; i < snap.taskCount; i++) {
+        if (snap.tasks[i].id > maxId) maxId = snap.tasks[i].id;
+        if (snap.tasks[i].id > maxTaskIdSeen && strcmp(snap.tasks[i].status, "pending") == 0 &&
+            (!newest || snap.tasks[i].id > newest->id))
+            newest = &snap.tasks[i];
+    }
+    if (maxTaskIdSeen >= 0 && newest) {
+        strlcpy(toastText, newest->text, sizeof(toastText));
+        toastOn    = true;
+        toastDrawn = false;
+        toastUntil = now + TOAST_MS;
+    }
+    if (maxId > maxTaskIdSeen) maxTaskIdSeen = maxId;
+}
 
-// fullRedraw: body was just cleared, so no trail needs erasing.
+// Cat may roam horizontally across the room, stopping before the plant.
+static const int CAT_MIN_X = MARGIN;
+static const int CAT_MAX_X = 186;
+
+// fullRedraw: the room was just painted, so no trail needs erasing.
 static void drawCatFrame(uint32_t now, bool fullRedraw) {
-    behaviorTick(catBeh, now, cat.mood == CatMood::IDLE, CAT_MIN_X, CAT_MAX_X);
+    behaviorTick(catBeh, now, cat.mood == CatMood::IDLE && !toastOn, CAT_MIN_X, CAT_MAX_X);
 
     CatPose p;
     p.mood      = cat.mood;
@@ -130,12 +202,13 @@ static void drawCatFrame(uint32_t now, bool fullRedraw) {
     p.facing    = catBeh.facing;
     p.look      = catBeh.look;
     p.comfort   = comfort;
+    p.envelope  = toastOn && !catIsAsleep(cat);
 
-    // Moving sprite: erase the strip it just left (the sprite covers the rest).
+    // Moving sprite: repaint the room in the strip it just left.
     int x = catBeh.x;
     if (!fullRedraw && x != catDrawnX) {
-        if (x > catDrawnX) tft.fillRect(catDrawnX, ROOM_CAT_Y, x - catDrawnX, CAT_H, C_BG);
-        else               tft.fillRect(x + CAT_W, ROOM_CAT_Y, catDrawnX - x, CAT_H, C_BG);
+        if (x > catDrawnX) sceneRepaintRect(catDrawnX, ROOM_CAT_Y, x - catDrawnX, CAT_H);
+        else               sceneRepaintRect(x + CAT_W, ROOM_CAT_Y, catDrawnX - x, CAT_H);
     }
     catDraw(p, x, ROOM_CAT_Y);
     catDrawnX = x;
@@ -146,37 +219,69 @@ static void render(uint32_t now, bool timeKnown, int hour, int minute, bool newA
     const bool screenNew   = !drawnOnce || ui.screen != drawnScreen;
     const int  dotsCount   = uiScreenCount(snap.playing);
 
-    // Header: on screen change or when anything it shows changed.
-    HeaderKey hk;
-    buildHeaderKey(hk, timeKnown, hour, minute, fresh);
-    if (screenNew || memcmp(&hk, &drawnHeader, sizeof(hk)) != 0) {
-        HeaderInfo hi = {};
-        hi.title     = hk.title;
-        hi.online    = snap.online;
-        hi.timeKnown = timeKnown;
-        hi.hour      = hour;
-        hi.minute    = minute;
-        hi.playing   = snap.playing;
-        hi.room      = &room;
-        hi.roomFresh = fresh;
-        drawHeader(hi);
-        drawnHeader = hk;
+    // Header (or the toast over it).
+    if (toastOn && (int32_t)(now - toastUntil) >= 0) {
+        toastOn = false;
+        headerDirty = true;
+    }
+    if (toastOn) {
+        if (!toastDrawn) {
+            drawToast("Nueva tarea", toastText, C_OK);
+            toastDrawn = true;
+        }
+    } else {
+        HeaderKey hk;
+        buildHeaderKey(hk, timeKnown, hour, minute, fresh);
+        if (screenNew || headerDirty || memcmp(&hk, &drawnHeader, sizeof(hk)) != 0) {
+            HeaderInfo hi = {};
+            hi.title     = hk.title;
+            hi.online    = snap.online;
+            hi.timeKnown = timeKnown;
+            hi.hour      = hour;
+            hi.minute    = minute;
+            hi.playing   = snap.playing;
+            hi.room      = &room;
+            hi.roomFresh = fresh;
+            hi.bg        = hk.bg;
+            drawHeader(hi);
+            drawnHeader = hk;
+            headerDirty = false;
+        }
     }
 
     // Body.
     switch (ui.screen) {
-        case Screen::ROOM:
+        case Screen::ROOM: {
+            SceneInfo sc;
+            buildScene(sc, timeKnown, hour, minute);
+            ClockKey ck;
+            buildClockKey(ck, sc);
             if (screenNew) {
-                drawRoomScreen();                      // clears body, invalidates strip
+                drawRoomScreen();                      // static room, invalidates strip
                 drawRoomStrip(room, fresh);
+                drawRoomClock(sc);
+                drawnClock = ck;
+                drawWindow(now, sc);
+                lastWindowFrame = now;
                 drawCatFrame(now, true);
                 lastCatFrame = now;
-            } else if ((now - lastCatFrame) >= CAT_FRAME_MS) {
-                drawRoomStrip(room, fresh);            // repaints changed columns only
-                drawCatFrame(now, false);
-                lastCatFrame = now;
+            } else {
+                if (memcmp(&ck, &drawnClock, sizeof(ck)) != 0) {
+                    drawRoomClock(sc);
+                    drawnClock = ck;
+                }
+                if ((now - lastWindowFrame) >= WINDOW_FRAME_MS) {
+                    drawWindow(now, sc);
+                    lastWindowFrame = now;
+                }
+                if ((now - lastCatFrame) >= CAT_FRAME_MS) {
+                    drawRoomStrip(room, fresh);        // repaints changed columns only
+                    drawCatFrame(now, false);
+                    lastCatFrame = now;
+                }
             }
             break;
+        }
 
         case Screen::TASKS:
             if (screenNew || snap.taskCount != drawnTaskCount ||
@@ -184,6 +289,9 @@ static void render(uint32_t now, bool timeKnown, int hour, int minute, bool newA
                 drawTasksScreen(snap.tasks, snap.taskCount);
                 memcpy(drawnTasks, snap.tasks, sizeof(drawnTasks));
                 drawnTaskCount = snap.taskCount;
+            } else if ((now - lastPulse) >= PULSE_FRAME_MS) {
+                drawTasksPulse(now);
+                lastPulse = now;
             }
             break;
 
@@ -204,10 +312,13 @@ static void render(uint32_t now, bool timeKnown, int hour, int minute, bool newA
             break;
     }
 
-    // Page dots: on screen change, or when Spotify joins/leaves the cycle.
-    if (screenNew || dotsCount != drawnDotsCount) {
-        drawPageDots(uiScreenIndex(ui.screen), dotsCount);
+    // Page dots: on screen change, when music joins/leaves the cycle, or when
+    // the music tint changes.
+    uint16_t bg = screenBg();
+    if (screenNew || dotsCount != drawnDotsCount || bg != drawnDotsBg) {
+        drawPageDots(uiScreenIndex(ui.screen), dotsCount, bg);
         drawnDotsCount = dotsCount;
+        drawnDotsBg    = bg;
     }
 
     drawnScreen = ui.screen;
@@ -221,6 +332,7 @@ void setup() {
     // Cat sprite (~18 KB) first, before the worker and artwork buffers.
     uint32_t heapBefore = ESP.getFreeHeap();
     bool sprOk = catDrawInit();
+    sceneInit();                         // window sprite (~7 KB)
     Serial.printf("[boot] cat sprite %s, heap %u -> %u B free (expect >= 40 KB)\n",
                   sprOk ? "OK" : "FAILED", (unsigned)heapBefore,
                   (unsigned)ESP.getFreeHeap());
@@ -286,6 +398,7 @@ void loop() {
         drawnBacklight = bl;
     }
 
+    checkNewTask(now);
     bool newArt = pickUpArtwork();
     render(now, timeKnown, hour, minute, newArt);
 

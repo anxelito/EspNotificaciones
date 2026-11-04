@@ -7,6 +7,8 @@
 
 // Now Playing
 #define NOWPLAYING_POLL_MS  3000UL    // poll Spotify every 3s
+#define WEATHER_POLL_MS     600000UL  // outside weather every 10 min
+#define WEATHER_RETRY_MS    60000UL   // after a failed weather fetch
 #define NOWPLAYING_STOP_POLLS 6       // consecutive not-playing/failed polls (~18 s) before "stopped"
 #define TASKS_MAX_FAILS     3         // consecutive failed task fetches before OFFLINE
 #define ARTWORK_SIZE        120       // 120x120 px, converted by backend/artwork.py
@@ -52,6 +54,9 @@
 #define BLINK_EVERY_MS     4000UL
 #define BLINK_LEN_MS       150UL
 #define CAT_FRAME_MS       80UL     // cat redraw cadence on Habitacion (~12 fps)
+#define WINDOW_FRAME_MS    150UL    // window (sky/weather) animation
+#define PULSE_FRAME_MS     60UL     // urgent task dot pulse
+#define TOAST_MS           6000UL   // "Nueva tarea" banner
 // Idle behaviour (logic/cat_behavior): random act between rests
 #define CAT_REST_MIN_MS    2500UL
 #define CAT_REST_MAX_MS    7000UL

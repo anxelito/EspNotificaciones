@@ -15,9 +15,9 @@ def _reset(monkeypatch):
     artwork.reset()
 
 
-def png_bytes(size=300):
+def png_bytes(size=300, colour=(200, 30, 90)):
     out = io.BytesIO()
-    Image.new("RGB", (size, size), (200, 30, 90)).save(out, "PNG")
+    Image.new("RGB", (size, size), colour).save(out, "PNG")
     return out.getvalue()
 
 
@@ -65,3 +65,20 @@ async def test_fetch_error_retries_later(monkeypatch):
 
 def test_bad_image_gives_empty():
     assert artwork.to_panel_jpeg(b"not an image") == b""
+
+
+def test_accent_prefers_colour_over_black():
+    img = Image.new("RGB", (100, 100), (5, 5, 5))           # mostly black
+    for x in range(30, 70):
+        for y in range(30, 70):
+            img.putpixel((x, y), (30, 120, 230))            # blue square
+    out = io.BytesIO(); img.save(out, "PNG")
+    r, g, b = (int(artwork.accent_colour(out.getvalue())[i:i + 2], 16) for i in (1, 3, 5))
+    assert b > 150 and r < 90
+
+
+async def test_panel_url_sets_accent(monkeypatch):
+    patch_client(monkeypatch, png_bytes(colour=(200, 30, 90)))
+    await artwork.panel_url("https://img/a.png")
+    acc = artwork.get_accent()
+    assert acc.startswith("#") and len(acc) == 7 and int(acc[1:3], 16) > 150

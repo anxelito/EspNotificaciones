@@ -7,6 +7,7 @@
 #include "../config.h"
 #include "../tasks.h"
 #include "../nowplaying.h"
+#include "../weather.h"
 
 struct NetSnapshot {
     bool       online;       // WiFi up AND last task fetch succeeded
@@ -15,6 +16,7 @@ struct NetSnapshot {
     bool       playing;      // last Spotify poll succeeded and is_playing
     NowPlaying np;
     uint32_t   songVersion;  // ++ on song change (title|artist)
+    Weather    weather;      // last good outside weather (ok=false until first)
 };
 
 // Creates the mutex and starts the worker pinned to core 0. `cached` (may be
