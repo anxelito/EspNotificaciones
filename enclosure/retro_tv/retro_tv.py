@@ -66,11 +66,13 @@ DHT_STOP_Y = 31.0                 # front stop: sensor sits from here backwards
 
 # ESP32 DevKit 38-pin, micro-USB at the back
 ESP_W, ESP_L = 28.0, 55.0
-ESP_CX = 30.0                     # board centre X (clear of the corner post)
-RAIL_H, RAIL_T = 12.0, 2.0        # rails the board edges rest on (pins hang between)
+ESP_CX = 28.0                     # board centre X (pin rows clear of the corner posts)
+RAIL_H, RAIL_T = 21.0, 2.0        # rails under the board, room for dupont plugs below
+RAIL_OFF = 8.0                    # rail centre from board centre: between the pin rows (+-12.7, or +-11.4 on narrow boards)
+SCREEN_BACK = 3.0                 # parts on the back of the screen PCB (SD slot, regulator)
 ESP_STOP_H = 3.0                  # front stop on the rails: USB ends up at the lid
 USB_GAP = 1.5                     # USB connector face -> lid inner face
-USB_W, USB_H = 12.0, 8.0          # lid opening for the power cable
+USB_W, USB_H = 13.0, 9.0          # lid opening for the power cable (plug moulding ~11 x 7.5)
 USB_Z = WALL + RAIL_H + 1.6 + 1.5 # micro-USB centre height
 
 # Lid and screws
@@ -356,25 +358,29 @@ def build():
         b.circle(sk, x, WALL + GLASS_T, z, SCREEN_PILOT_D / 2)
     b.sym(b.all_profiles(sk), GLASS_T - 0.6, CUT, BODY)
 
-    zr = WALL + RAIL_H / 2
-    y0r, y1r = WALL, D - LIP_H - 1.0                     # rails start at the front wall (printable)
-    sk = b.sketch("z", zr)
-    for sx in (-1, 1):
-        cx = ESP_CX + sx * (ESP_W / 2 - RAIL_T / 2)
-        b.rrect(sk, flat(zr), cx, (y0r + y1r) / 2, RAIL_T, y1r - y0r, 0.2)
-    b.sym(b.all_profiles(sk), RAIL_H / 2 + 0.2, JOIN, BODY)
-
-    # Stop at the front of the rails: push the board against it and the
-    # micro-USB lands USB_GAP mm behind the lid, right at the cable opening.
-    # Short 6 mm block (well behind the screen PCB); its small front
-    # overhang prints fine.
+    # Rails along Y, between the ESP32's pin rows (dupont plugs hang down
+    # beside them). A rail under the screen starts behind the screen PCB with
+    # a 45-degree ramp; one clear of the screen starts at the front wall. Both
+    # print without supports (front face on the bed).
+    y1r = D - LIP_H - 1.0
+    scr_back = WALL + GLASS_T + 1.6 + SCREEN_BACK
     esp_y0 = D - USB_GAP - ESP_L
-    zs = WALL + RAIL_H + ESP_STOP_H / 2
-    sk = b.sketch("z", zs)
     for sx in (-1, 1):
-        cx = ESP_CX + sx * (ESP_W / 2 - RAIL_T / 2)
-        b.rrect(sk, flat(zs), cx, esp_y0 - 3.0, RAIL_T, 6.0, 0.2)
-    b.sym(b.all_profiles(sk), ESP_STOP_H / 2 + 0.1, JOIN, BODY)
+        cx = ESP_CX + sx * RAIL_OFF
+        under_screen = abs(cx - SCR_CX) < PCB_W / 2 + RAIL_T
+        ys = scr_back if under_screen else WALL
+        ramp = RAIL_H if under_screen else 0.0
+        sk = b.sketch("x", cx)
+        b.poly(sk, [(cx, ys, WALL - 0.2), (cx, ys + ramp, WALL + RAIL_H), (cx, y1r, WALL + RAIL_H),
+                    (cx, y1r, WALL - 0.2)])
+        b.sym(b.all_profiles(sk), RAIL_T / 2, JOIN, BODY)
+        # Stop on the rail(s) already full height there: push the board
+        # against it and the micro-USB lands USB_GAP mm behind the lid.
+        if ys + ramp <= esp_y0 - 6.0:
+            zs = WALL + RAIL_H + ESP_STOP_H / 2
+            sk = b.sketch("z", zs)
+            b.rrect(sk, flat(zs), cx, esp_y0 - 3.0, RAIL_T, 6.0, 0.2)
+            b.sym(b.all_profiles(sk), ESP_STOP_H / 2 + 0.1, JOIN, BODY)
 
     # ---- 6. back lid (printed separately, placed behind the body) -------------
     LID_Y = D + 15.0                                       # inner face of the plate
