@@ -11,8 +11,8 @@
 #define WEATHER_RETRY_MS    60000UL   // after a failed weather fetch
 #define NOWPLAYING_STOP_POLLS 6       // consecutive not-playing/failed polls (~18 s) before "stopped"
 #define TASKS_MAX_FAILS     3         // consecutive failed task fetches before OFFLINE
-#define ARTWORK_SIZE        120       // 120x120 px, converted by backend/artwork.py
-#define MAX_ARTWORK_BYTES   16384     // max JPEG buffer in RAM (x3: worker, published, UI)
+#define ARTWORK_SIZE        120       // sharp cover inside the composed 320x200 music image
+#define MAX_ARTWORK_BYTES   16384     // composed music JPEG buffer (x3: worker, published, UI)
 
 // Network worker (core 0)
 #define NET_WORKER_CORE     0
@@ -56,6 +56,7 @@
 #define CAT_FRAME_MS       80UL     // cat redraw cadence on Habitacion (~12 fps)
 #define WINDOW_FRAME_MS    150UL    // window (sky/weather) animation
 #define PULSE_FRAME_MS     60UL     // urgent task dot pulse
+#define EQ_FRAME_MS        90UL     // music equaliser bars
 #define TOAST_MS           6000UL   // "Nueva tarea" banner
 // Idle behaviour (logic/cat_behavior): random act between rests
 #define CAT_REST_MIN_MS    2500UL

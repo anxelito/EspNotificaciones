@@ -19,7 +19,9 @@ def _reset(monkeypatch):
     monkeypatch.setenv("LASTFM_API_KEY", "k")
     monkeypatch.setenv("LASTFM_USER", "u")
     monkeypatch.setenv("BASE_URL", "https://example.com")
-    for name, val in (("_cache", None), ("_cache_at", 0.0), ("_backoff_until", 0.0)):
+    monkeypatch.setattr(lastfm, "_extra", {})
+    for name, val in (("_cache", None), ("_cache_at", 0.0), ("_backoff_until", 0.0),
+                      ("_np_key", None), ("_np_since", 0.0)):
         monkeypatch.setattr(lastfm, name, val)
 
 
@@ -35,7 +37,7 @@ class FakeResp:
             raise httpx.HTTPStatusError("err", request=None, response=None)
 
 
-def patch_client(monkeypatch, api_body=None, exc=None):
+def patch_client(monkeypatch, api_body=None, exc=None, info=None, itunes=None):
     calls = []
 
     class FakeClient:
@@ -46,7 +48,11 @@ def patch_client(monkeypatch, api_body=None, exc=None):
             calls.append(url)
             if exc: raise exc
             if url == lastfm.API_URL:
+                if (k.get("params") or {}).get("method") == "track.getInfo":
+                    return FakeResp(info or {})
                 return FakeResp(api_body)
+            if url == lastfm.ITUNES_URL:
+                return FakeResp(itunes or {"results": []})
             return FakeResp(content=png_bytes())
 
     monkeypatch.setattr(lastfm.httpx, "AsyncClient", FakeClient)
@@ -101,3 +107,27 @@ async def test_error_backs_off(monkeypatch):
     assert len(calls) == 1
     assert lastfm._backoff_until > time.time()
 
+
+
+async def test_duration_and_progress(monkeypatch):
+    patch_client(monkeypatch, track(), info={"track": {"duration": "200000"}})
+    monkeypatch.setattr(lastfm.time, "time", lambda: 1000.0)
+    np = await lastfm.get_now_playing()
+    assert np["duration_ms"] == 200000 and np["progress_ms"] == 0
+    monkeypatch.setattr(lastfm.time, "time", lambda: 1030.0)
+    np = await lastfm.get_now_playing()
+    assert np["progress_ms"] == 30000
+    monkeypatch.setattr(lastfm.time, "time", lambda: 2000.0)
+    np = await lastfm.get_now_playing()
+    assert np["progress_ms"] == 200000          # clamped to the duration
+
+
+async def test_placeholder_cover_uses_itunes(monkeypatch):
+    body = track()
+    for img in body["recenttracks"]["track"][0]["image"]:
+        img["#text"] = "https://lastfm/i/u/300x300/2a96cbd8b46e442fc41c2b86b821562f.png"
+    patch_client(monkeypatch, body, itunes={"results": [
+        {"artworkUrl100": "https://itunes/a/100x100bb.jpg", "trackTimeMillis": 180000}]})
+    np = await lastfm.get_now_playing()
+    assert np["artwork_url"] == "https://itunes/a/300x300bb.jpg"
+    assert np["duration_ms"] == 180000

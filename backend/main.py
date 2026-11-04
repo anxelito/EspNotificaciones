@@ -71,8 +71,11 @@ async def nowplaying_endpoint(_=Depends(verify_api_key)):
         np = lf
     np = _panel_np_text(np)
     np["artwork_url"] = await artwork.panel_url(np.get("artwork_url") or "")
-    if np["artwork_url"] and artwork.get_accent():
-        np["accent"] = artwork.get_accent()
+    if np["artwork_url"]:
+        if artwork.get_accent():
+            np["accent"] = artwork.get_accent()
+        if artwork.get_bg():
+            np["bg"] = artwork.get_bg()
     return np
 
 

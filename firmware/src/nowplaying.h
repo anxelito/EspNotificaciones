@@ -13,5 +13,7 @@ struct NowPlaying {
     int   duration_ms;
     bool     hasAccent;   // backend sent the cover's main colour
     uint16_t accent;      // RGB565
+    bool     hasBg;       // backend sent the solid colour under the text
+    uint16_t bg;          // RGB565 (matches the composed artwork's text area)
 };
 

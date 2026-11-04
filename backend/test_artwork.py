@@ -47,7 +47,7 @@ async def test_converts_and_caches(monkeypatch):
     assert url.startswith("https://example.com/nowplaying/artwork.jpg?v=")
     art = artwork.get_artwork()
     assert art[:2] == b"\xff\xd8" and len(art) <= artwork.ART_MAX_BYTES
-    assert Image.open(io.BytesIO(art)).size == (artwork.ART_PX, artwork.ART_PX)
+    assert Image.open(io.BytesIO(art)).size == (artwork.PANEL_W, artwork.PANEL_H)
     assert await artwork.panel_url("https://img/a.png") == url
     assert len(calls) == 1          # same cover: no re-download
 
@@ -64,7 +64,15 @@ async def test_fetch_error_retries_later(monkeypatch):
 
 
 def test_bad_image_gives_empty():
-    assert artwork.to_panel_jpeg(b"not an image") == b""
+    assert artwork.compose_panel(b"not an image") == (b"", "", "")
+
+
+def test_text_area_is_solid_bg():
+    jpg, bg, _ = artwork.compose_panel(png_bytes(colour=(30, 120, 230)))
+    img = Image.open(io.BytesIO(jpg)).convert("RGB")
+    want = tuple(int(bg[i:i + 2], 16) for i in (1, 3, 5))
+    px = img.getpixel((10, artwork.TEXT_Y + 20))
+    assert all(abs(a - b) <= 6 for a, b in zip(px, want))
 
 
 def test_accent_prefers_colour_over_black():

@@ -144,6 +144,14 @@ int fetchTasks(TaskItem* tasks) {
     return count;
 }
 
+// "#rrggbb" -> RGB565. False if the string is not a colour.
+static bool parseHex565(const char* s, uint16_t* out) {
+    if (strlen(s) != 7 || s[0] != '#') return false;
+    uint32_t rgb = strtoul(s + 1, nullptr, 16);
+    *out = (uint16_t)(((rgb >> 8) & 0xF800) | ((rgb >> 5) & 0x07E0) | ((rgb >> 3) & 0x001F));
+    return true;
+}
+
 bool fetchNowPlaying(NowPlaying* np) {
     if (WiFi.status() != WL_CONNECTED) return false;
 
@@ -174,12 +182,8 @@ bool fetchNowPlaying(NowPlaying* np) {
     strlcpy(np->artist,      doc["artist"]      | "", sizeof(np->artist));
     strlcpy(np->album,       doc["album"]       | "", sizeof(np->album));
     strlcpy(np->artwork_url, doc["artwork_url"] | "", sizeof(np->artwork_url));
-    const char* acc = doc["accent"] | "";            // "#rrggbb"
-    np->hasAccent = strlen(acc) == 7 && acc[0] == '#';
-    if (np->hasAccent) {
-        uint32_t rgb = strtoul(acc + 1, nullptr, 16);
-        np->accent = (uint16_t)(((rgb >> 8) & 0xF800) | ((rgb >> 5) & 0x07E0) | ((rgb >> 3) & 0x001F));
-    }
+    np->hasAccent = parseHex565(doc["accent"] | "", &np->accent);
+    np->hasBg     = parseHex565(doc["bg"] | "", &np->bg);
 
     return true;
 }

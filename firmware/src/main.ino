@@ -74,6 +74,12 @@ static TaskItem   drawnTasks[MAX_TASKS];
 static int        drawnTaskCount  = -1;
 static NowPlaying drawnNp;
 static uint32_t   drawnSongVer    = 0;
+static int        drawnProgSec    = -1;
+static uint32_t   lastEqFrame     = 0;
+// Progress estimate between polls: last reported value + time since then.
+static int        npProgSeen      = -1;
+static uint32_t   npProgAt        = 0;
+static uint32_t   npProgSong      = 0;
 
 // "Nueva tarea" toast over the header.
 static int        maxTaskIdSeen   = -1;  // -1 until the first online task list
@@ -147,6 +153,17 @@ static void buildClockKey(ClockKey& k, const SceneInfo& s) {
     }
     k.weatherOk = s.weatherOk;
     if (s.weatherOk) { k.code = s.weatherCode; k.temp = (int)lroundf(s.outTemp); }
+}
+
+static int estimatedProgress(uint32_t now) {
+    if (snap.np.progress_ms != npProgSeen || snap.songVersion != npProgSong) {
+        npProgSeen = snap.np.progress_ms;
+        npProgSong = snap.songVersion;
+        npProgAt   = now;
+    }
+    if (snap.np.duration_ms <= 0) return 0;
+    long p = (long)npProgSeen + (long)(now - npProgAt);
+    return p > snap.np.duration_ms ? snap.np.duration_ms : (int)p;
 }
 
 static bool artworkReady() {
@@ -305,21 +322,30 @@ static void render(uint32_t now, bool timeKnown, int hour, int minute, bool newA
             }
             break;
 
-        case Screen::MUSIC:
-            if (screenNew || snap.songVersion != drawnSongVer) {
+        case Screen::MUSIC: {
+            int prog = estimatedProgress(now);
+            bool bgChanged = musicBg(snap.np) != musicBg(drawnNp);
+            if (screenNew || snap.songVersion != drawnSongVer || bgChanged ||
+                (newArt && artworkReady())) {          // artwork arrived after the text
                 bool ok = artworkReady();
-                drawMusicScreen(snap.np, ok ? artworkBuf : nullptr, ok ? artworkLen : 0);
-                drawnNp      = snap.np;
-                drawnSongVer = snap.songVersion;
+                drawMusicScreen(snap.np, ok ? artworkBuf : nullptr, ok ? artworkLen : 0, prog);
+                drawnNp       = snap.np;
+                drawnSongVer  = snap.songVersion;
+                drawnProgSec  = prog / 1000;
+                lastEqFrame   = now;
             } else {
-                if (newArt && artworkReady())          // arrived after the text
-                    renderArtwork(artworkBuf, artworkLen, MUSIC_ART_X, MUSIC_ART_Y);
-                if (memcmp(&snap.np, &drawnNp, sizeof(drawnNp)) != 0) {
-                    drawMusicProgress(snap.np);
-                    drawnNp = snap.np;
+                if ((now - lastEqFrame) >= EQ_FRAME_MS) {
+                    drawMusicEq(snap.np, now);
+                    lastEqFrame = now;
+                }
+                if (prog / 1000 != drawnProgSec || snap.np.duration_ms != drawnNp.duration_ms) {
+                    drawMusicProgress(snap.np, prog);
+                    drawnProgSec = prog / 1000;
+                    drawnNp      = snap.np;
                 }
             }
             break;
+        }
     }
 
     // Page dots: on screen change, when music joins/leaves the cycle, or when
