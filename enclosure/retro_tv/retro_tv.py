@@ -3,11 +3,12 @@
 Builds, in the active design (use a NEW, empty design):
   * "Cuerpo TV"      -- shell with screen window in a sunken CRT bezel, touch
                         knob (TTP223 pocket behind a 1.2 mm wall), speaker
-                        slots, side grille with a slide-in DHT11 cradle,
+                        slots, side grille,
                         antenna socket, leg holes, screw posts, screen posts
                         and ESP32 rails with a stop that puts the micro-USB
                         right behind the lid's cable opening.
-  * "Tapa trasera"   -- back lid with locating lip, screw holes, vents and a
+  * "Tapa trasera"   -- back lid with locating lip, screw holes, vents, a
+                        slide-in cradle for the DHT11 module and a
                         micro-USB opening.
   * "Antena"         -- rabbit-ear antenna, printed flat, plugs into the top.
   * "Pata delantera/trasera" -- legs; the front ones are longer so the TV
@@ -56,13 +57,18 @@ TTP_CLEAR = 0.3                   # pocket clearance per side
 GRILLE_SLOTS, GRILLE_LEN, GRILLE_W = 4, 18.0, 1.6
 GRILLE_TOP_Z = 18.0
 
-# Left side grille + DHT11 cradle (sensor slides in from the back)
+# Left side grille (air in for the sensor; looks like a speaker)
 SIDE_SLOTS, SIDE_LEN, SIDE_W = 6, 26.0, 1.8
 SIDE_Y0, SIDE_Z0 = 34.0, 26.0     # first slot: front end (Y), bottom (Z)
-DHT_W, DHT_T = 12.0, 5.5          # DHT11 body width (Z) and thickness (X). Measure!
-DHT_CLEAR = 0.4                   # slide clearance
-DHT_RAIL_T, DHT_LIP = 1.6, 1.5    # cradle rail thickness, retaining lip
-DHT_STOP_Y = 31.0                 # front stop: sensor sits from here backwards
+
+# DHT11 on its little PCB (3-pin module), held on the inside of the back lid
+# behind the vents, top left: far from the ESP32's heat. Measure yours!
+DHTM_L, DHTM_W = 28.5, 12.5       # module PCB: length (pins at one end), width
+DHTM_STACK = 7.1                  # sensor face to PCB back (sensor 5.5 + PCB 1.6)
+DHTM_CX, DHTM_CZ = -24.0, 60.0    # module centre on the lid (X, Z)
+DHTM_CLEAR = 0.3                  # slide clearance
+DHTM_RAIL_T, DHTM_LIP = 1.6, 1.2  # cradle rail thickness, lip over the PCB edge
+DHTM_PIN_END = 4.0                # free PCB length at the pin end (no lip there)
 
 # ESP32 DevKit 38-pin, micro-USB at the back
 ESP_W, ESP_L = 28.0, 55.0
@@ -291,38 +297,12 @@ def build():
         b.rrect(sk, front(0), KNOB_X, GRILLE_TOP_Z - i * (GRILLE_W * 2.2), GRILLE_LEN, GRILLE_W, GRILLE_W / 2 - 0.05)
     b.sym(b.all_profiles(sk), WALL + 1, CUT, BODY)
 
-    # ---- 3. left side grille (DHT11) -----------------------------------------
+    # ---- 3. left side grille --------------------------------------------------
     sk = b.sketch("x", -W / 2)
     for i in range(SIDE_SLOTS):
         z = SIDE_Z0 + i * SIDE_W * 2.4
         b.rrect(sk, side(-W / 2), SIDE_Y0 + SIDE_LEN / 2, z, SIDE_LEN, SIDE_W, SIDE_W / 2 - 0.05)
     b.sym(b.all_profiles(sk), WALL + 1, CUT, BODY)
-
-    # DHT11 cradle: two L-rails along Y on the inner left wall. The sensor
-    # slides in from the back with its grille face against the wall; the lips
-    # hold it there, a block at the front stops it. All features run along Y,
-    # so they print as columns with the front face on the bed.
-    xi = -W / 2 + WALL                                     # inner face of the left wall
-    zc = SIDE_Z0 + (SIDE_SLOTS - 1) * SIDE_W * 2.4 / 2 + SIDE_W / 2   # grille centre
-    g = (DHT_W + 2 * DHT_CLEAR) / 2                        # half gap between rails
-    depth = DHT_T + DHT_CLEAR                              # sensor pocket depth (X)
-    ydr0, ydr1 = DHT_STOP_Y, D - LIP_H - 1.0
-    ym = (ydr0 + ydr1) / 2
-    sk = b.sketch("y", ym)
-    for sz in (-1, 1):                                     # L profile: rail + lip
-        z_in, z_out = zc + sz * g, zc + sz * (g + DHT_RAIL_T)
-        z_lip = zc + sz * (g - DHT_LIP)
-        x_l = xi + depth
-        b.poly(sk, [(xi - 0.5, ym, z_in), (xi - 0.5, ym, z_out), (x_l + DHT_RAIL_T, ym, z_out),
-                    (x_l + DHT_RAIL_T, ym, z_lip), (x_l, ym, z_lip), (x_l, ym, z_in)])
-    b.sym(b.all_profiles(sk), (ydr1 - ydr0) / 2, JOIN, BODY)
-    # Front stop: a 45-degree wedge (prints without supports, and carries the
-    # start of the rails). Its back face at DHT_STOP_Y stops the sensor.
-    wx = depth + DHT_RAIL_T + 0.5
-    sk = b.sketch("z", zc)
-    b.poly(sk, [(xi - 0.5, ydr0 - wx, zc), (xi - 0.5, ydr0 + 0.1, zc),
-                (xi + depth + DHT_RAIL_T, ydr0 + 0.1, zc)])
-    b.sym(b.all_profiles(sk), g + DHT_RAIL_T, JOIN, BODY)
 
     # ---- 4. top antenna socket, bottom leg holes -------------------------------
     sk = b.sketch("z", H)
@@ -406,6 +386,29 @@ def build():
     for i in range(5):                                     # vents, upper half
         b.rrect(sk, front(yc), -18.0, H - 18.0 - i * 5.0, 44.0, 2.0, 0.95)
     b.sym(b.all_profiles(sk), LID_T + LIP_H + 1, CUT, LID)
+
+    # DHT11 module cradle on the lid's inner face: two L-rails along X hold
+    # the PCB edges with the sensor face against the lid (behind the vents);
+    # it slides in from the pin end and stops against an end wall. Printed
+    # with the lid's outer face down, the rails stand up and the small lips
+    # are short overhangs.
+    dep = DHTM_STACK + DHTM_CLEAR                          # sensor face -> under the lip
+    gz = (DHTM_W + 2 * DHTM_CLEAR) / 2                     # half gap between the rails
+    xs = DHTM_CX - DHTM_L / 2 - DHTM_CLEAR                 # sensor end of the slot
+    xe = DHTM_CX + DHTM_L / 2 - DHTM_PIN_END               # rails stop before the pins
+    xm = (xs - DHTM_RAIL_T + xe) / 2
+    sk = b.sketch("x", xm)
+    for sz in (-1, 1):
+        z_in, z_out = DHTM_CZ + sz * gz, DHTM_CZ + sz * (gz + DHTM_RAIL_T)
+        z_lip = DHTM_CZ + sz * (gz - DHTM_LIP)
+        y_in, y_lip = LID_Y - dep, LID_Y - dep - DHTM_RAIL_T
+        b.poly(sk, [(xm, LID_Y + 0.2, z_in), (xm, LID_Y + 0.2, z_out), (xm, y_lip, z_out),
+                    (xm, y_lip, z_lip), (xm, y_in, z_lip), (xm, y_in, z_in)])
+    b.sym(b.all_profiles(sk), (xe - xs + DHTM_RAIL_T) / 2, JOIN, LID)
+    sk = b.sketch("y", LID_Y - dep / 2)                    # end wall at the sensor end
+    b.rrect(sk, front(LID_Y - dep / 2), xs - DHTM_RAIL_T / 2, DHTM_CZ, DHTM_RAIL_T,
+            2 * (gz + DHTM_RAIL_T), 0.2)
+    b.sym(b.all_profiles(sk), dep / 2 + 0.1, JOIN, LID)
 
     # ---- 7. antenna (flat, in front of the body) -------------------------------
     AY = -40.0
