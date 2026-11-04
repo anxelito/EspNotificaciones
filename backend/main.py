@@ -1,5 +1,6 @@
 # backend/main.py
 import os
+import unicodedata
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Request, HTTPException, Response
 from dotenv import load_dotenv
@@ -57,9 +58,21 @@ async def nowplaying_endpoint(_=Depends(verify_api_key)):
     # app owner's account). Fall back to Last.fm scrobbles (no progress bar).
     sp = await get_now_playing()
     if sp.get("is_playing"):
-        return sp
+        return _ascii_text(sp)
     lf = await lastfm.get_now_playing()
-    return lf if lf.get("is_playing") else sp
+    return _ascii_text(lf) if lf.get("is_playing") else sp
+
+
+def _ascii_fold(text: str) -> str:
+    """'céro – Ñu' -> 'cero - Nu': the panel's fonts are ASCII-only."""
+    text = text.replace("–", "-").replace("—", "-").replace("’", "'")
+    decomposed = unicodedata.normalize("NFKD", text)
+    return decomposed.encode("ascii", "ignore").decode("ascii")
+
+
+def _ascii_text(np: dict) -> dict:
+    return {k: _ascii_fold(v) if k in ("title", "artist", "album") and isinstance(v, str) else v
+            for k, v in np.items()}
 
 
 @app.get(lastfm.ARTWORK_PATH)

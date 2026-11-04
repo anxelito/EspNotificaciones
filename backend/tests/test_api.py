@@ -118,3 +118,12 @@ async def test_nowplaying_nothing(client):
     with patch("main.get_now_playing", AsyncMock(return_value={"is_playing": False})),          patch("main.lastfm.get_now_playing", AsyncMock(return_value={"is_playing": False})):
         np = (await client.get("/nowplaying", headers=KEY)).json()
     assert np == {"is_playing": False}
+
+
+@pytest.mark.asyncio
+async def test_nowplaying_text_is_ascii(client):
+    lf = {**LF, "title": "Canción – ñu", "artist": "céro"}
+    with patch("main.get_now_playing", AsyncMock(return_value={"is_playing": False})), \
+         patch("main.lastfm.get_now_playing", AsyncMock(return_value=lf)):
+        np = (await client.get("/nowplaying", headers=KEY)).json()
+    assert np["title"] == "Cancion - nu" and np["artist"] == "cero"
