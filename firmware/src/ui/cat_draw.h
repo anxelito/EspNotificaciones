@@ -17,7 +17,8 @@ struct CatPose {
 };
 
 // Creates the CAT_W x CAT_H 16-bit sprite once (~18 KB). If allocation fails,
-// catDraw falls back to drawing straight onto tft (may flicker).
-void catDrawInit();
+// catDraw falls back to drawing straight onto tft (may flicker). Returns
+// true if the sprite exists.
+bool catDrawInit();
 // Renders one frame into the sprite and pushes it with its top-left at (x,y).
 void catDraw(const CatPose& p, int x, int y);

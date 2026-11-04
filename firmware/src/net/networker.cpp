@@ -206,3 +206,11 @@ int netCopyArtwork(uint8_t* dst, int maxLen, uint32_t* version) {
     xSemaphoreGive(s_mutex);
     return n;
 }
+
+uint32_t netArtworkVersion() {
+    if (!s_mutex) return 0;
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    uint32_t v = s_artVersion;
+    xSemaphoreGive(s_mutex);
+    return v;
+}

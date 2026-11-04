@@ -13,8 +13,3 @@ struct NowPlaying {
     int   duration_ms;
 };
 
-// Screen mode enum for automatic switching
-enum ScreenMode {
-    SCREEN_TASKS,
-    SCREEN_NOW_PLAYING
-};

@@ -2,7 +2,6 @@
 #pragma once
 
 #define POLL_INTERVAL_MS    5000UL
-#define NTP_SYNC_INTERVAL   3600000UL
 #define NTP_SERVER          "pool.ntp.org"
 #define MAX_TASKS           8
 
@@ -19,7 +18,6 @@
 #define NET_LOOP_DELAY_MS   50
 #define HTTP_TIMEOUT_MS     3000      // connect / TLS handshake / read, each
 #define WIFI_RETRY_MS       10000UL   // WiFi.reconnect() cadence while down
-#define UI_REFRESH_MS       100UL     // loop() snapshot check cadence
 
 // Display geometry (320x240 landscape)
 #define SCREEN_W    320

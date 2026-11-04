@@ -28,3 +28,7 @@ void netGetSnapshot(NetSnapshot* out);
 // belongs to into *version (even when returning 0). Returns bytes copied, or 0
 // if no artwork is available (none downloaded / download failed / too big).
 int netCopyArtwork(uint8_t* dst, int maxLen, uint32_t* version);
+
+// Cheap peek: songVersion of the currently published artwork (no copy). Lets
+// loop() call netCopyArtwork only once the artwork for the current song exists.
+uint32_t netArtworkVersion();

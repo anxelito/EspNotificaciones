@@ -23,11 +23,12 @@ static constexpr uint16_t C_EYE    = C_BG;
 
 static const float PI_F = 3.14159265f;
 
-void catDrawInit() {
-    if (haveSprite) return;
+bool catDrawInit() {
+    if (haveSprite) return true;
     spr.setColorDepth(16);
     haveSprite = spr.createSprite(CAT_W, CAT_H) != nullptr;
     if (!haveSprite) Serial.println("[cat] sprite alloc failed, drawing direct");
+    return haveSprite;
 }
 
 // ---- small parts ---------------------------------------------------------
