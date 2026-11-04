@@ -21,6 +21,13 @@ void test_ui_timeout_returns_room();
 void test_ui_timeout_millis_wrap();
 void test_ui_music_ends_leaves_music();
 void test_ui_screen_count();
+void test_cat_falls_asleep();
+void test_cat_wakes_morning();
+void test_cat_night_tap_window();
+void test_cat_pet_day();
+void test_cat_pet_night();
+void test_cat_no_blink_when_sleeping();
+void test_cat_blink_period();
 
 void setUp() {}
 void tearDown() {}
@@ -47,5 +54,12 @@ int main(int, char**) {
     RUN_TEST(test_ui_timeout_millis_wrap);
     RUN_TEST(test_ui_music_ends_leaves_music);
     RUN_TEST(test_ui_screen_count);
+    RUN_TEST(test_cat_falls_asleep);
+    RUN_TEST(test_cat_wakes_morning);
+    RUN_TEST(test_cat_night_tap_window);
+    RUN_TEST(test_cat_pet_day);
+    RUN_TEST(test_cat_pet_night);
+    RUN_TEST(test_cat_no_blink_when_sleeping);
+    RUN_TEST(test_cat_blink_period);
     return UNITY_END();
 }
