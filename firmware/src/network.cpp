@@ -6,11 +6,22 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h>
+#include <time.h>
 
-static WiFiUDP    _ntpUDP;
-static NTPClient  _timeClient(_ntpUDP, NTP_SERVER, TZ_OFFSET * 3600, 60000);
+// Every network operation must give up within ~3 s so the worker on core 0
+// stays responsive (DNS lookup is the only step not bounded here).
+#define HTTP_TIMEOUT_S  ((HTTP_TIMEOUT_MS + 999) / 1000)
+
+static void prepClient(WiFiClientSecure& client) {
+    client.setInsecure(); // accepts any cert — sufficient for private OCI endpoint
+    client.setHandshakeTimeout(HTTP_TIMEOUT_S);
+    client.setTimeout(HTTP_TIMEOUT_S);
+}
+
+static void prepHttp(HTTPClient& http) {
+    http.setConnectTimeout(HTTP_TIMEOUT_MS);
+    http.setTimeout(HTTP_TIMEOUT_MS);
+}
 
 bool connectWiFi() {
     WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -20,28 +31,32 @@ bool connectWiFi() {
     return WiFi.status() == WL_CONNECTED;
 }
 
-bool syncNTP() {
-    static bool _begun = false;
-    if (!_begun) {
-        _timeClient.begin();
-        _begun = true;
-    }
-    return _timeClient.forceUpdate();
+void clockBegin() {
+    // ESP-IDF SNTP runs in the lwIP thread and re-syncs on its own (default 1 h).
+    configTime(TZ_OFFSET * 3600L, 0, NTP_SERVER);
 }
 
-String getCurrentTime() {
-    _timeClient.update();
-    // getFormattedTime() returns "HH:MM:SS"
-    return _timeClient.getFormattedTime().substring(0, 5);
+bool clockGetHM(int* hour, int* minute) {
+    // Equivalent to getLocalTime(&tm, 0) but without its millis() edge case
+    // (with ms=0 that loop can run zero times and return false spuriously).
+    time_t now;
+    struct tm tm;
+    time(&now);
+    localtime_r(&now, &tm);
+    if (tm.tm_year <= (2016 - 1900)) return false; // never synced
+    if (hour)   *hour   = tm.tm_hour;
+    if (minute) *minute = tm.tm_min;
+    return true;
 }
 
 int fetchTasks(TaskItem* tasks) {
     if (WiFi.status() != WL_CONNECTED) return -1;
 
     WiFiClientSecure client;
-    client.setInsecure(); // accepts any cert — sufficient for private OCI endpoint
+    prepClient(client);
 
     HTTPClient http;
+    prepHttp(http);
     http.begin(client, API_URL);
     http.addHeader("X-API-Key", API_KEY);
 
@@ -75,9 +90,10 @@ bool fetchNowPlaying(NowPlaying* np) {
     if (WiFi.status() != WL_CONNECTED) return false;
 
     WiFiClientSecure client;
-    client.setInsecure();
+    prepClient(client);
 
     HTTPClient http;
+    prepHttp(http);
     http.begin(client, NOWPLAYING_URL);
     http.addHeader("X-API-Key", API_KEY);
 
@@ -109,9 +125,10 @@ int fetchArtwork(const char* url, uint8_t* buf, int maxLen) {
     if (strlen(url) == 0) return -1;
 
     WiFiClientSecure client;
-    client.setInsecure();
+    prepClient(client);
 
     HTTPClient http;
+    prepHttp(http);
     http.begin(client, url);
 
     int code = http.GET();
@@ -128,17 +145,23 @@ int fetchArtwork(const char* url, uint8_t* buf, int maxLen) {
 
     WiFiClient* stream = http.getStreamPtr();
     int totalRead = 0;
+    unsigned long lastData = millis();
     while (totalRead < contentLen) {
         int avail = stream->available();
         if (avail > 0) {
             int toRead = min(avail, contentLen - totalRead);
             int bytesRead = stream->readBytes(buf + totalRead, toRead);
-            totalRead += bytesRead;
+            if (bytesRead > 0) {
+                totalRead += bytesRead;
+                lastData = millis();
+            }
+        } else if (!stream->connected() || (millis() - lastData) >= HTTP_TIMEOUT_MS) {
+            break; // stalled or dropped: give up instead of spinning forever
         } else {
             delay(1);
         }
     }
 
     http.end();
-    return totalRead;
+    return (totalRead == contentLen) ? totalRead : -1;
 }

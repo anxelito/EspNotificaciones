@@ -11,6 +11,15 @@
 #define ARTWORK_SIZE        64        // 64x64 px from Spotify CDN
 #define MAX_ARTWORK_BYTES   8192      // max JPEG buffer in RAM
 
+// Network worker (core 0)
+#define NET_WORKER_CORE     0
+#define NET_WORKER_STACK    16384     // bytes (ESP-IDF stack depth unit = bytes)
+#define NET_WORKER_PRIO     1
+#define NET_LOOP_DELAY_MS   50
+#define HTTP_TIMEOUT_MS     3000      // connect / TLS handshake / read, each
+#define WIFI_RETRY_MS       10000UL   // WiFi.reconnect() cadence while down
+#define UI_REFRESH_MS       100UL     // loop() snapshot check cadence
+
 // Display geometry (320x240 landscape)
 #define SCREEN_W    320
 #define SCREEN_H    240
