@@ -21,6 +21,26 @@ SPOTIFY_NOW_PLAYING_URL = "https://api.spotify.com/v1/me/player/currently-playin
 # We want the smallest (64×64) to fit ESP32 RAM comfortably.
 _PREFERRED_ART_SIZE = 64
 
+_DEFAULT_BACKOFF_S = 60.0
+_backoff_until: float = 0.0
+
+
+def _backoff(seconds: float = _DEFAULT_BACKOFF_S) -> None:
+    global _backoff_until
+    _backoff_until = time.time() + seconds
+
+
+def _retry_after(resp) -> float:
+    try:
+        return max(1.0, float(resp.headers.get("Retry-After", _DEFAULT_BACKOFF_S)))
+    except (TypeError, ValueError):
+        return _DEFAULT_BACKOFF_S
+
+
+def _creds_configured() -> bool:
+    return all(os.getenv(k) for k in
+               ("SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REFRESH_TOKEN"))
+
 
 async def _refresh_access_token() -> str:
     """Exchange the long-lived refresh token for a fresh access token."""
@@ -30,7 +50,7 @@ async def _refresh_access_token() -> str:
     client_secret = os.getenv("SPOTIFY_CLIENT_SECRET", "")
     refresh_token = os.getenv("SPOTIFY_REFRESH_TOKEN", "")
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(
             SPOTIFY_TOKEN_URL,
             data={
@@ -62,11 +82,11 @@ def _pick_artwork_url(images: list[dict], preferred_size: int = _PREFERRED_ART_S
     if not images:
         return ""
     # Sort by absolute distance to preferred size
-    scored = sorted(images, key=lambda img: abs(img.get("width", 640) - preferred_size))
+    scored = sorted(images, key=lambda img: abs((img.get("width") or 640) - preferred_size))
     return scored[0].get("url", "")
 
 
-async def get_now_playing() -> dict:
+async def _get_now_playing() -> dict:
     """
     Call Spotify's currently-playing endpoint and return a simplified dict.
 
@@ -83,7 +103,7 @@ async def get_now_playing() -> dict:
     """
     token = await _get_token()
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(
             SPOTIFY_NOW_PLAYING_URL,
             headers={"Authorization": f"Bearer {token}"},
@@ -91,6 +111,11 @@ async def get_now_playing() -> dict:
 
     # 204 = nothing playing, 200 = something playing
     if resp.status_code == 204 or resp.status_code == 202:
+        return {"is_playing": False}
+
+    if resp.status_code == 429:
+        _backoff(_retry_after(resp))
+        logger.warning("Spotify rate limited, backing off %.0fs", _backoff_until - time.time())
         return {"is_playing": False}
 
     if resp.status_code == 401:
@@ -110,8 +135,8 @@ async def get_now_playing() -> dict:
 
     # Could be a track or an episode (podcast)
     item = data.get("item")
-    if item is None:
-        return {"is_playing": data.get("is_playing", False)}
+    if item is None:          # ad / unknown media: nothing displayable
+        return {"is_playing": False}
 
     item_type = item.get("type", "track")
 
@@ -135,3 +160,16 @@ async def get_now_playing() -> dict:
         "progress_ms": data.get("progress_ms", 0),
         "duration_ms": item.get("duration_ms", 0),
     }
+
+
+async def get_now_playing() -> dict:
+    """Never raises: any Spotify/network problem yields {"is_playing": False}."""
+    if not _creds_configured() or time.time() < _backoff_until:
+        return {"is_playing": False}
+    try:
+        return await _get_now_playing()
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
+        logger.warning("Spotify now-playing failed (%s: %s); backing off %.0fs",
+                       type(exc).__name__, exc, _DEFAULT_BACKOFF_S)
+        _backoff()
+        return {"is_playing": False}
