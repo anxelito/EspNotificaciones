@@ -15,7 +15,3 @@ firmware/.vscode/
 
 # Brainstorm artifacts
 .superpowers/
-
-# PC agent
-pc_agent/config.json
-pc_agent/agent.log*

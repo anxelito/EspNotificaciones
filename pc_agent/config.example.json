@@ -1,4 +1,0 @@
-{
-  "base_url": "https://tareas.anxelito.com",
-  "api_key": "same API_KEY as the backend .env / firmware secrets.h"
-}

@@ -88,56 +88,33 @@ async def test_webhook_valid_token(client):
     assert resp.json() == {"ok": True}
 
 
-# --- PC agent now-playing fallback -------------------------------------------
-import pc_nowplaying
 
+# --- Now playing source order --------------------------------------------------
 KEY = {"X-API-Key": "test-key"}
-
-
-@pytest.fixture
-def _pc_reset():
-    pc_nowplaying.reset()
-    yield
-    pc_nowplaying.reset()
+LF = {"is_playing": True, "title": "LF song", "artist": "B", "album": "",
+      "artwork_url": "", "progress_ms": 0, "duration_ms": 0}
 
 
 @pytest.mark.asyncio
-async def test_nowplaying_uses_pc_when_spotify_idle(client, _pc_reset):
-    with patch("main.get_now_playing", AsyncMock(return_value={"is_playing": False})):
-        await client.put("/nowplaying/pc/artwork", content=b"\xff\xd8jpg", headers=KEY)
-        r = await client.post("/nowplaying/pc", headers=KEY, json={
-            "is_playing": True, "title": "Song", "artist": "Band", "album": ""})
-        assert r.status_code == 200
+async def test_nowplaying_falls_back_to_lastfm(client):
+    with patch("main.get_now_playing", AsyncMock(return_value={"is_playing": False})),          patch("main.lastfm.get_now_playing", AsyncMock(return_value=LF)):
         np = (await client.get("/nowplaying", headers=KEY)).json()
-    assert np["is_playing"] and np["title"] == "Song" and np["artist"] == "Band"
-    assert np["duration_ms"] == 0 and np["progress_ms"] == 0
-    assert np["artwork_url"].startswith("https://example.com/nowplaying/pc/artwork.jpg?v=")
-    art = await client.get("/nowplaying/pc/artwork.jpg")
-    assert art.status_code == 200 and art.content == b"\xff\xd8jpg"
+    assert np["title"] == "LF song" and np["duration_ms"] == 0
 
 
 @pytest.mark.asyncio
-async def test_nowplaying_prefers_spotify_api(client, _pc_reset):
-    pc_nowplaying.set_state(True, "PC song", "PC", "")
+async def test_nowplaying_prefers_spotify_api(client):
     sp = {"is_playing": True, "title": "API song", "artist": "A", "album": "B",
           "artwork_url": "", "progress_ms": 1000, "duration_ms": 2000}
-    with patch("main.get_now_playing", AsyncMock(return_value=sp)):
+    lf = AsyncMock(return_value=LF)
+    with patch("main.get_now_playing", AsyncMock(return_value=sp)),          patch("main.lastfm.get_now_playing", lf):
         np = (await client.get("/nowplaying", headers=KEY)).json()
     assert np["title"] == "API song" and np["duration_ms"] == 2000
+    lf.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_pc_state_goes_stale(client, _pc_reset):
-    pc_nowplaying.set_state(True, "Old", "X", "")
-    pc_nowplaying._state_at -= pc_nowplaying.STALE_S + 1
-    with patch("main.get_now_playing", AsyncMock(return_value={"is_playing": False})):
+async def test_nowplaying_nothing(client):
+    with patch("main.get_now_playing", AsyncMock(return_value={"is_playing": False})),          patch("main.lastfm.get_now_playing", AsyncMock(return_value={"is_playing": False})):
         np = (await client.get("/nowplaying", headers=KEY)).json()
     assert np == {"is_playing": False}
-
-
-@pytest.mark.asyncio
-async def test_pc_push_requires_key(client, _pc_reset):
-    r = await client.post("/nowplaying/pc", json={"is_playing": True})
-    assert r.status_code in (401, 403, 422)
-    r = await client.put("/nowplaying/pc/artwork", content=b"x" * 9000, headers=KEY)
-    assert r.status_code == 413

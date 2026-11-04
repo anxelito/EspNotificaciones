@@ -2,7 +2,6 @@
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Request, HTTPException, Response
-from pydantic import BaseModel
 from dotenv import load_dotenv
 from telegram import Update
 
@@ -17,7 +16,7 @@ from database import init_db, get_all_tasks
 from auth import verify_api_key, verify_telegram_token
 from bot import build_application
 from spotify import get_now_playing
-import pc_nowplaying
+import lastfm
 
 _bot_app = None
 
@@ -54,41 +53,20 @@ async def tasks_endpoint(_=Depends(verify_api_key)):
 
 @app.get("/nowplaying")
 async def nowplaying_endpoint(_=Depends(verify_api_key)):
-    # Spotify Web API first (works from any device, has progress; needs
-    # Premium). Fall back to what the PC agent reports (no progress bar).
+    # Spotify Web API first (any device, has progress; needs Premium on the
+    # app owner's account). Fall back to Last.fm scrobbles (no progress bar).
     sp = await get_now_playing()
     if sp.get("is_playing"):
         return sp
-    return pc_nowplaying.get_fresh() or sp
+    lf = await lastfm.get_now_playing()
+    return lf if lf.get("is_playing") else sp
 
 
-class PcNowPlaying(BaseModel):
-    is_playing: bool
-    title: str = ""
-    artist: str = ""
-    album: str = ""
-
-
-@app.post("/nowplaying/pc")
-async def nowplaying_pc_push(body: PcNowPlaying, _=Depends(verify_api_key)):
-    pc_nowplaying.set_state(body.is_playing, body.title, body.artist, body.album)
-    return {"ok": True}
-
-
-@app.put("/nowplaying/pc/artwork")
-async def nowplaying_pc_artwork_put(request: Request, _=Depends(verify_api_key)):
-    data = await request.body()
-    if len(data) > pc_nowplaying.MAX_ARTWORK_BYTES:
-        raise HTTPException(status_code=413, detail="Artwork too large")
-    pc_nowplaying.set_artwork(data)
-    return {"ok": True}
-
-
-@app.get("/nowplaying/pc/artwork.jpg")
-async def nowplaying_pc_artwork_get():
+@app.get(lastfm.ARTWORK_PATH)
+async def nowplaying_artwork():
     # Public on purpose: the panel's artwork fetch sends no API key, and the
     # image is just the current album cover.
-    data = pc_nowplaying.get_artwork()
+    data = lastfm.get_artwork()
     if not data:
         raise HTTPException(status_code=404, detail="No artwork")
     return Response(content=data, media_type="image/jpeg")
