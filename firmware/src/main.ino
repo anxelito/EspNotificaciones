@@ -8,6 +8,9 @@
 #include "network.h"
 #include "nowplaying.h"
 #include "net/networker.h"
+#include "ui/theme.h"
+#include "ui/chrome.h"
+#include "ui/screen_tasks.h"
 #include <SPIFFS.h>
 #include <WiFi.h>
 
@@ -103,7 +106,22 @@ void loop() {
         if (currentScreen != SCREEN_TASKS || tasksChanged || timeChanged || !drawnOnce) {
             // Nothing playing — (back to) the tasks screen
             currentScreen = SCREEN_TASKS;
-            redrawAll(snap.tasks, snap.taskCount, String(t), snap.online);
+            int pending = 0;
+            for (int i = 0; i < snap.taskCount; i++)
+                if (strcmp(snap.tasks[i].status, "pending") == 0) pending++;
+            char title[24];
+            snprintf(title, sizeof(title), "TAREAS " TITLE_DOT " %d", pending);
+            HeaderInfo hi = {};
+            hi.title = title;
+            hi.online = snap.online;
+            hi.timeKnown = clockGetHM(&hi.hour, &hi.minute);
+            hi.playing = false;
+            static const RoomReading noRoom;   // sensors wired in Task 10
+            hi.room = &noRoom;
+            hi.roomFresh = false;
+            drawHeader(hi);
+            drawTasksScreen(snap.tasks, snap.taskCount);
+            drawPageDots(1, snap.playing ? 3 : 2);
             strlcpy(shownTime, t, sizeof(shownTime));
             drawnOnce = true;
         }

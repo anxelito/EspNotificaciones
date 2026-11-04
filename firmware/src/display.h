@@ -11,9 +11,6 @@ extern TFT_eSPI tft;
 void displayInit();
 void drawSplash(const String& msg);
 
-// Redraws full screen: header + all task cards
-void redrawAll(TaskItem* tasks, int count, const String& time_str, bool online);
-
 // Draws the Now Playing screen (artwork + song info)
 void drawNowPlaying(const NowPlaying& np, const String& time_str);
 
