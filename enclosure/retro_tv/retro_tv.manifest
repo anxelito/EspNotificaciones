@@ -1,0 +1,10 @@
+{
+  "autodeskProduct": "Fusion360",
+  "type": "script",
+  "author": "EspNotificaciones",
+  "description": {
+    "": "Mini retro TV enclosure for the ESP32 panel (2.4in ST7789, ESP32 DevKit)"
+  },
+  "supportedOS": "windows|mac",
+  "editEnabled": true
+}
