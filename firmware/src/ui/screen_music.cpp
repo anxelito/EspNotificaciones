@@ -28,6 +28,11 @@ static void fmtMs(int ms, char* out, size_t len) {
 }
 
 void drawMusicProgress(const NowPlaying& np) {
+    if (np.duration_ms <= 0) {
+        // Source without timing (PC agent, Spotify free): no bar, no times.
+        tft.fillRect(BAR_X, BAR_Y, BAR_W_PX, TIME_Y + 16 - BAR_Y, C_CARD);
+        return;
+    }
     tft.fillRoundRect(BAR_X, BAR_Y, BAR_W_PX, BAR_H, 2, C_DOT_OFF);
     if (np.duration_ms > 0) {
         long fillW = (long)BAR_W_PX * np.progress_ms / np.duration_ms;
