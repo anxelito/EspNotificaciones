@@ -14,7 +14,9 @@ TapEffect uiOnTap(UiState& s, bool musicPlaying, bool catAsleep, uint32_t nowMs)
 
 bool uiTick(UiState& s, bool musicPlaying, uint32_t nowMs) {
   if (s.screen == Screen::ROOM) return false;
-  if ((nowMs - s.lastTouchMs) >= IDLE_RETURN_MS ||
+  // Music screen stays up while something plays; it leaves when music stops.
+  bool musicUp = s.screen == Screen::MUSIC && musicPlaying;
+  if ((!musicUp && (nowMs - s.lastTouchMs) >= IDLE_RETURN_MS) ||
       (s.screen == Screen::MUSIC && !musicPlaying)) {
     s.screen = Screen::ROOM;
     return true;

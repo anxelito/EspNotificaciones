@@ -53,3 +53,11 @@ void test_ui_screen_count() {
     TEST_ASSERT_EQUAL(3, uiScreenCount(true));
     TEST_ASSERT_EQUAL(2, uiScreenCount(false));
 }
+
+void test_ui_music_stays_while_playing() {
+    UiState s;
+    s.screen = Screen::MUSIC;
+    s.lastTouchMs = 0;
+    TEST_ASSERT_FALSE(uiTick(s, true, 10UL * 60UL * 1000UL));   // 10 min, no touch
+    TEST_ASSERT_EQUAL(Screen::MUSIC, s.screen);
+}

@@ -73,8 +73,8 @@ static bool pollTasks() {
 static bool pollNowPlaying() {
     memset(&w_np, 0, sizeof(w_np));
     bool ok = fetchNowPlaying(&w_np);
-    if (ok) w_npFails = 0;
     if (ok && w_np.is_playing) {
+        w_npFails = 0;
         char key[sizeof(w_songKey)];
         snprintf(key, sizeof(key), "%s|%s", w_np.title, w_np.artist);
         bool songChanged = strcmp(key, w_songKey) != 0;
@@ -86,12 +86,11 @@ static bool pollNowPlaying() {
         w_snap.np      = w_np;
         return songChanged;
     }
-    if (!ok) {
-        // Transient failure (HTTP error / timeout / bad JSON): keep the last
-        // state and song key; give up only after NOWPLAYING_MAX_FAILS in a row.
-        if (w_npFails < NOWPLAYING_MAX_FAILS) w_npFails++;
-        if (w_npFails < NOWPLAYING_MAX_FAILS) return false;
-    }
+    // Not playing, or a failed poll: keep the last state for a few polls.
+    // Failures are often transient, and Last.fm briefly drops "now playing"
+    // between tracks; only NOWPLAYING_STOP_POLLS in a row count as stopped.
+    if (w_npFails < NOWPLAYING_STOP_POLLS) w_npFails++;
+    if (w_snap.playing && w_npFails < NOWPLAYING_STOP_POLLS) return false;
     // Confirmed not playing (or too many failures): forget the song so the next
     // play — even of the same track — counts as a change and refreshes artwork.
     w_snap.playing = false;

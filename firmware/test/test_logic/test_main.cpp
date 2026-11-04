@@ -36,6 +36,8 @@ void test_behavior_frozen_when_cannot_act();
 void test_behavior_phase_range();
 void test_behavior_millis_wrap();
 
+void test_ui_music_stays_while_playing();
+
 void setUp() {}
 void tearDown() {}
 
@@ -74,5 +76,6 @@ int main(int, char**) {
     RUN_TEST(test_behavior_frozen_when_cannot_act);
     RUN_TEST(test_behavior_phase_range);
     RUN_TEST(test_behavior_millis_wrap);
+    RUN_TEST(test_ui_music_stays_while_playing);
     return UNITY_END();
 }
