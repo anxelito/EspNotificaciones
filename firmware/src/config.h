@@ -14,7 +14,33 @@
 // Display geometry (320x240 landscape)
 #define SCREEN_W    320
 #define SCREEN_H    240
-#define HEADER_H     28
+#define HEADER_H     26
 #define TASK_H       38
 #define TASK_MARGIN   3
 #define BAR_W         3
+
+// Pins
+#define PIN_DHT        27
+#define PIN_TOUCH      32
+#define BACKLIGHT_PIN  -1     // -1 = no dimming
+
+// Room comfort thresholds
+#define TEMP_COLD_BELOW  18.0f
+#define TEMP_HOT_ABOVE   25.0f
+#define HUM_DRY_BELOW    30.0f
+#define HUM_HUMID_ABOVE  65.0f
+
+// Sleep window (local hours)
+#define SLEEP_START_H  23
+#define SLEEP_END_H    8
+
+// Timings
+#define DHT_READ_MS        2000UL
+#define SENSOR_STALE_MS    30000UL
+#define TOUCH_DEBOUNCE_MS  30UL
+#define LONG_PRESS_MS      1000UL
+#define IDLE_RETURN_MS     30000UL
+#define NIGHT_WAKE_MS      10000UL
+#define PET_MS             2000UL
+#define BLINK_EVERY_MS     4000UL
+#define BLINK_LEN_MS       150UL
