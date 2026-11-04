@@ -2,9 +2,11 @@
 
 Builds, in the active design (use a NEW, empty design):
   * "Cuerpo TV"      -- shell with screen window in a sunken CRT bezel, touch
-                        knob (TTP223 behind a 1.2 mm wall), speaker slots,
-                        side grille for the DHT11, antenna socket, leg holes,
-                        screw posts, screen posts and ESP32 rails.
+                        knob (TTP223 pocket behind a 1.2 mm wall), speaker
+                        slots, side grille with a slide-in DHT11 cradle,
+                        antenna socket, leg holes, screw posts, screen posts
+                        and ESP32 rails with a stop that puts the micro-USB
+                        right behind the lid's cable opening.
   * "Tapa trasera"   -- back lid with locating lip, screw holes, vents and a
                         micro-USB opening.
   * "Antena"         -- rabbit-ear antenna, printed flat, plugs into the top.
@@ -49,19 +51,26 @@ KNOB_TOUCH_Z = 50.0               # touch knob (TTP223 behind it)
 KNOB_DECO_Z = 30.0                # decorative knob
 KNOB_D, KNOB_RING = 16.0, 2.2     # knob diameter, engraved ring width
 TOUCH_WALL = 1.2                  # wall left in front of the TTP223 pad
-TOUCH_POCKET_D = 15.0
+TTP_W, TTP_H = 15.0, 11.0         # TTP223 module PCB (pad side faces the wall)
+TTP_CLEAR = 0.3                   # pocket clearance per side
 GRILLE_SLOTS, GRILLE_LEN, GRILLE_W = 4, 18.0, 1.6
 GRILLE_TOP_Z = 18.0
 
-# Left side grille (DHT11 sits behind it, glued)
+# Left side grille + DHT11 cradle (sensor slides in from the back)
 SIDE_SLOTS, SIDE_LEN, SIDE_W = 6, 26.0, 1.8
 SIDE_Y0, SIDE_Z0 = 34.0, 26.0     # first slot: front end (Y), bottom (Z)
+DHT_W, DHT_T = 12.0, 5.5          # DHT11 body width (Z) and thickness (X). Measure!
+DHT_CLEAR = 0.4                   # slide clearance
+DHT_RAIL_T, DHT_LIP = 1.6, 1.5    # cradle rail thickness, retaining lip
+DHT_STOP_Y = 31.0                 # front stop: sensor sits from here backwards
 
 # ESP32 DevKit 38-pin, micro-USB at the back
 ESP_W, ESP_L = 28.0, 55.0
 ESP_CX = 30.0                     # board centre X (clear of the corner post)
 RAIL_H, RAIL_T = 12.0, 2.0        # rails the board edges rest on (pins hang between)
-USB_W, USB_H = 12.0, 8.0          # lid opening
+ESP_STOP_H = 3.0                  # front stop on the rails: USB ends up at the lid
+USB_GAP = 1.5                     # USB connector face -> lid inner face
+USB_W, USB_H = 12.0, 8.0          # lid opening for the power cable
 USB_Z = WALL + RAIL_H + 1.6 + 1.5 # micro-USB centre height
 
 # Lid and screws
@@ -265,8 +274,8 @@ def build():
         b.rrect(sk, front(0), KNOB_X, kz + ri - 2.5, 1.6, 5.0, 0.7)
         b.sym(b.all_profiles(sk), 0.8, CUT, BODY)
 
-    sk = b.sketch("y", WALL)                               # thin wall for the TTP223
-    b.circle(sk, KNOB_X, WALL, KNOB_TOUCH_Z, TOUCH_POCKET_D / 2)
+    sk = b.sketch("y", WALL)                               # TTP223 pocket, thin wall
+    b.rrect(sk, front(WALL), KNOB_X, KNOB_TOUCH_Z, TTP_W + 2 * TTP_CLEAR, TTP_H + 2 * TTP_CLEAR, 0.6)
     b.sym(b.all_profiles(sk), WALL - TOUCH_WALL, CUT, BODY)
 
     sk = b.sketch("y", 0)                                  # speaker slots
@@ -280,6 +289,32 @@ def build():
         z = SIDE_Z0 + i * SIDE_W * 2.4
         b.rrect(sk, side(-W / 2), SIDE_Y0 + SIDE_LEN / 2, z, SIDE_LEN, SIDE_W, SIDE_W / 2 - 0.05)
     b.sym(b.all_profiles(sk), WALL + 1, CUT, BODY)
+
+    # DHT11 cradle: two L-rails along Y on the inner left wall. The sensor
+    # slides in from the back with its grille face against the wall; the lips
+    # hold it there, a block at the front stops it. All features run along Y,
+    # so they print as columns with the front face on the bed.
+    xi = -W / 2 + WALL                                     # inner face of the left wall
+    zc = SIDE_Z0 + (SIDE_SLOTS - 1) * SIDE_W * 2.4 / 2 + SIDE_W / 2   # grille centre
+    g = (DHT_W + 2 * DHT_CLEAR) / 2                        # half gap between rails
+    depth = DHT_T + DHT_CLEAR                              # sensor pocket depth (X)
+    ydr0, ydr1 = DHT_STOP_Y, D - LIP_H - 1.0
+    ym = (ydr0 + ydr1) / 2
+    sk = b.sketch("y", ym)
+    for sz in (-1, 1):                                     # L profile: rail + lip
+        z_in, z_out = zc + sz * g, zc + sz * (g + DHT_RAIL_T)
+        z_lip = zc + sz * (g - DHT_LIP)
+        x_l = xi + depth
+        b.poly(sk, [(xi - 0.5, ym, z_in), (xi - 0.5, ym, z_out), (x_l + DHT_RAIL_T, ym, z_out),
+                    (x_l + DHT_RAIL_T, ym, z_lip), (x_l, ym, z_lip), (x_l, ym, z_in)])
+    b.sym(b.all_profiles(sk), (ydr1 - ydr0) / 2, JOIN, BODY)
+    # Front stop: a 45-degree wedge (prints without supports, and carries the
+    # start of the rails). Its back face at DHT_STOP_Y stops the sensor.
+    wx = depth + DHT_RAIL_T + 0.5
+    sk = b.sketch("z", zc)
+    b.poly(sk, [(xi - 0.5, ydr0 - wx, zc), (xi - 0.5, ydr0 + 0.1, zc),
+                (xi + depth + DHT_RAIL_T, ydr0 + 0.1, zc)])
+    b.sym(b.all_profiles(sk), g + DHT_RAIL_T, JOIN, BODY)
 
     # ---- 4. top antenna socket, bottom leg holes -------------------------------
     sk = b.sketch("z", H)
@@ -322,6 +357,18 @@ def build():
         cx = ESP_CX + sx * (ESP_W / 2 - RAIL_T / 2)
         b.rrect(sk, flat(zr), cx, (y0r + y1r) / 2, RAIL_T, y1r - y0r, 0.2)
     b.sym(b.all_profiles(sk), RAIL_H / 2 + 0.2, JOIN, BODY)
+
+    # Stop at the front of the rails: push the board against it and the
+    # micro-USB lands USB_GAP mm behind the lid, right at the cable opening.
+    # Short 6 mm block (well behind the screen PCB); its small front
+    # overhang prints fine.
+    esp_y0 = D - USB_GAP - ESP_L
+    zs = WALL + RAIL_H + ESP_STOP_H / 2
+    sk = b.sketch("z", zs)
+    for sx in (-1, 1):
+        cx = ESP_CX + sx * (ESP_W / 2 - RAIL_T / 2)
+        b.rrect(sk, flat(zs), cx, esp_y0 - 3.0, RAIL_T, 6.0, 0.2)
+    b.sym(b.all_profiles(sk), ESP_STOP_H / 2 + 0.1, JOIN, BODY)
 
     # ---- 6. back lid (printed separately, placed behind the body) -------------
     LID_Y = D + 15.0                                       # inner face of the plate
