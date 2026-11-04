@@ -1,16 +1,41 @@
-# Panel de escritorio ESP32
+<h1 align="center">Panel de escritorio ESP32</h1>
+
+<p align="center"><b>Una mascota animada en tu mesa que te enseña la hora, el tiempo, la temperatura de tu cuarto, tus tareas de Telegram y lo que suena en Spotify.</b></p>
+
+<p align="center">
+  <a href="https://github.com/anxelito/EspNotificaciones/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/anxelito/EspNotificaciones/actions/workflows/tests.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="Licencia MIT" src="https://img.shields.io/badge/licencia-MIT-4fd18b"></a>
+  <img alt="ESP32" src="https://img.shields.io/badge/ESP32-PlatformIO-ff8a3d">
+  <img alt="Pantalla" src="https://img.shields.io/badge/pantalla-ST7789%202.4%22-5ab0ff">
+  <img alt="Backend" src="https://img.shields.io/badge/backend-FastAPI-b48cff">
+  <a href="https://anxelito.github.io/EspNotificaciones/"><img alt="Pruébalo online" src="https://img.shields.io/badge/pru%C3%A9balo-online-ff6b8a"></a>
+</p>
 
 <p align="center"><img src="docs/designs/pinguino/hero.png" width="560" alt="Pantalla Habitación: Pingüino en el polo"></p>
 
-Un panel de 2.4" para la mesa con una mascota animada. Muestra la hora, el tiempo y la temperatura de la habitación, tus tareas de Telegram y lo que suena en Spotify. Funciona con un ESP32, una pantalla ST7789, un sensor DHT11 y un botón táctil TTP223.
+<p align="center">
+  <a href="#pruébalo">Pruébalo</a> ·
+  <a href="#diseños-de-la-habitación">Diseños</a> ·
+  <a href="#monta-el-tuyo">Monta el tuyo</a> ·
+  <a href="docs/INSTALACION.md">Guía completa</a> ·
+  <a href="#preguntas-frecuentes">Preguntas frecuentes</a>
+</p>
 
 > **Esta rama:** diseño **C · Pingüino en el polo**. Cada diseño de la pantalla Habitación vive en su propia rama `design/<nombre>`; consulta la [galería](#diseños-de-la-habitación).
+
+## Pruébalo
+
+**Sin hardware, en el navegador:**
+- [**Simulador del panel**](https://anxelito.github.io/EspNotificaciones/simulador/): el robot en su estación. Cambia la hora, la temperatura, la humedad y el tiempo; tócalo, acarícialo o mándale una tarea.
+- [**Visor 3D de cajas**](https://anxelito.github.io/EspNotificaciones/caja/): seis ideas de carcasa imprimible, para girarlas, cambiarles el color y la inclinación.
+
+**Con hardware:** cuesta unos 15 € en piezas y se monta en una tarde. Ve a [Monta el tuyo](#monta-el-tuyo).
 
 ## Qué hace
 
 | Pantalla | Qué muestra |
 |---|---|
-| **Habitación** | Reloj grande, fecha y tiempo de Madrid; la mascota con su escena; temperatura, humedad y confort del DHT11 |
+| **Habitación** | Reloj grande, fecha y tiempo de tu ciudad; la mascota con su escena; temperatura, humedad y confort del DHT11 |
 | **Tareas** | Las tareas que mandas al bot de Telegram, con prioridad, progreso y aviso cuando llega una nueva |
 | **Música** | La canción de Spotify (o Last.fm en la versión gratuita): portada grande, fondo difuminado, ecualizador y barra de progreso |
 
@@ -148,33 +173,92 @@ Estanque con nenúfares, juncos, flor de loto y árboles. Cuando llueve salen an
 
 Pruébalo: `git checkout design/rana`
 
-## Cambiar de diseño
+## Monta el tuyo
+
+### Lo que necesitas
+
+| Pieza | Aprox. | Notas |
+|---|---|---|
+| ESP32 DevKit (38 pines) | 6 € | cualquier ESP32-WROOM vale |
+| Pantalla ST7789 2.4" 240×320 (SPI) | 6 € | se usa en horizontal |
+| DHT11 | 1.5 € | temperatura y humedad |
+| TTP223 | 0.5 € | botón táctil; funciona a través de 1.2 mm de plástico. Opcional: sin él, el botón BOOT de la placa hace lo mismo |
+| Cables dupont y un cable micro-USB | | |
+| Impresora 3D | | opcional, para la [caja Mini TV retro](enclosure/retro_tv) |
+
+### Cableado
+
+| Pantalla ST7789 | ESP32 | | Sensor | ESP32 |
+|---|---|---|---|---|
+| VCC | 3V3 | | DHT11 DATA | GPIO27 |
+| GND | GND | | TTP223 I/O | GPIO32 |
+| SCL / SCK | GPIO18 | | VCC de ambos | 3V3 |
+| SDA / MOSI | GPIO23 | | GND de ambos | GND |
+| CS | GPIO15 | | | |
+| DC | GPIO2 | | | |
+| RES / RST | GPIO4 | | | |
+| BL / LED | 3V3 | | | |
+
+Más detalle (DHT11 suelto de 4 pines, regular el brillo) en [`firmware/WIRING.md`](firmware/WIRING.md).
+
+### En 4 pasos
+
+1. **Crea un bot de Telegram:** habla con [@BotFather](https://t.me/BotFather), usa `/newbot` y guarda el token.
+2. **Arranca el backend** (Python 3.11+). Necesita una URL HTTPS pública:
+   - un VPS con dominio,
+   - o, para probar desde tu PC, un túnel gratis de Cloudflare.
+
+   ```bash
+   cd backend
+   python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
+   cp .env.example .env        # rellena el token, API_KEY, BASE_URL...
+   uvicorn main:app --port 8000
+   ```
+3. **Configura el firmware:**
+   - Copia `firmware/src/secrets.h.example` a `secrets.h`.
+   - Pon tu WiFi, la URL del backend y la misma `API_KEY`.
+4. **Flashea** con [PlatformIO](https://platformio.org/install):
+
+   ```bash
+   cd firmware
+   pio run -e esp32dev -t upload   # si falla, mantén BOOT pulsado durante "Connecting..."
+   ```
+
+Ya está: escribe al bot y la tarea aparece en el panel. 🎉
+
+👉 La **[guía completa](docs/INSTALACION.md)** explica cada paso:
+- el túnel de Cloudflare;
+- dejar el backend como servicio;
+- Spotify o Last.fm;
+- el tiempo de tu ciudad;
+- la zona horaria;
+- la caja impresa.
+
+### Usar el bot
+
+| Envías | Pasa |
+|---|---|
+| `Comprar leche` | tarea normal |
+| `Pagar la luz!` | tarea **urgente** (con `!` al final) |
+| `/done 3` | marca la tarea 3 como hecha |
+| `/delete 3` | borra la tarea 3 |
+| `/list` | lista las tareas |
+| `/clear` | borra las tareas hechas |
+
+### Cambiar de diseño
 
 ```bash
 git checkout design/perro          # o gato, pinguino, pez, robot, rana
-cd firmware
-pio run -e esp32dev -t upload      # mantén BOOT pulsado mientras pone "Connecting..."
+cd firmware && pio run -e esp32dev -t upload
 ```
 
 `firmware/src/secrets.h` no está en git, así que se conserva al cambiar de rama.
 
-## Hardware
-
-| Pieza | Notas |
-|---|---|
-| ESP32 DevKit (38 pines, micro-USB) | |
-| Pantalla ST7789 de 2.4", 240×320 | se usa en horizontal (320×240) |
-| DHT11 | temperatura y humedad, en GPIO27 |
-| TTP223 | botón táctil, en GPIO32. Funciona a través de 1.2 mm de plástico |
-
-- **Cableado:** [`firmware/WIRING.md`](firmware/WIRING.md).
-- **Caja imprimible (Mini TV retro):** [`enclosure/retro_tv`](enclosure/retro_tv). Es un script de Fusion 360 que deja las piezas listas para imprimir.
-- **Otras cajas:** [`enclosure/viewer`](enclosure/viewer) tiene un visor 3D con seis ideas.
-
 ## Cómo funciona
 
 ```
-Telegram ──webhook──▶ FastAPI (OCI) ──HTTPS──▶ ESP32 ──SPI──▶ ST7789
+Telegram ──webhook──▶ FastAPI ──HTTPS──▶ ESP32 ──SPI──▶ ST7789
 Spotify / Last.fm ──▶   /nowplaying               ▲
 Open-Meteo ─────────▶   /weather              DHT11 + TTP223
 ```
@@ -196,3 +280,61 @@ Open-Meteo ─────────▶   /weather              DHT11 + TTP223
 | [`firmware/tools/snapshots`](firmware/tools/snapshots) | `python firmware/tools/snapshots/snap.py` compila el código de dibujo real en el PC, con una imitación de TFT_eSPI, y genera las capturas y los GIF de `docs/` |
 | [`firmware/tools/simulator`](firmware/tools/simulator) | Simulador en el navegador (robot): hora, temperatura, tiempo, caricias… |
 | [`firmware/tools/make_fonts.py`](firmware/tools/make_fonts.py) | Genera las fuentes suaves |
+
+## Preguntas frecuentes
+
+<details><summary><b>La pantalla pone OFFLINE</b></summary>
+
+- `API_URL` tiene que acabar en `/tasks` y ser **HTTPS**.
+- La `API_KEY` de `secrets.h` tiene que ser la misma que la del `.env`.
+- El monitor serie (`pio device monitor`) muestra el código HTTP de cada fallo.
+</details>
+
+<details><summary><b>El flasheo falla con "Wrong boot mode" o no conecta</b></summary>
+
+Mantén pulsado el botón **BOOT** de la placa mientras sale `Connecting...` y suéltalo cuando empiece a escribir.
+</details>
+
+<details><summary><b>No tengo Spotify Premium</b></summary>
+
+La API de Spotify exige Premium al dueño de la app. Sin Premium:
+1. Conecta Spotify a [Last.fm](https://www.last.fm/settings/applications) ("scrobbling").
+2. Pon `LASTFM_API_KEY` y `LASTFM_USER` en el `.env`.
+
+La pantalla de música funcionará igual, con portada y progreso estimado.
+</details>
+
+<details><summary><b>Los colores salen invertidos o la imagen desplazada</b></summary>
+
+Hay pantallas ST7789 de varios fabricantes. Prueba en `firmware/src/User_Setup.h`:
+- `TFT_INVERSION_ON` o `TFT_INVERSION_OFF`;
+- `TFT_RGB_ORDER TFT_BGR`.
+</details>
+
+<details><summary><b>¿Necesito el sensor y el botón táctil?</b></summary>
+
+No.
+- Sin DHT11, la tira de abajo muestra `--`.
+- Sin TTP223, el botón BOOT de la placa sirve para tocar (corto) y acariciar (largo).
+</details>
+
+<details><summary><b>Quiero crear mi propia mascota</b></summary>
+
+Crea una rama y cambia solo dos cosas:
+- `firmware/src/ui/room_scene.*`: el escenario;
+- `firmware/src/ui/cat_draw.cpp`: la mascota.
+
+Para ver el resultado sin flashear, `python firmware/tools/snapshots/snap.py` genera las capturas en el PC. Si te sale una bonita, ¡manda un PR!
+</details>
+
+## Contribuir
+
+Se aceptan issues y PRs: nuevas mascotas, cajas o pantallas.
+- Lógica: `pio test -e native`.
+- Backend: `cd backend && pytest`.
+
+## Licencia y créditos
+
+- Código bajo licencia [MIT](LICENSE).
+- Fuente [Nunito](https://github.com/googlefonts/nunito) (SIL Open Font License 1.1), convertida a fuentes suaves de TFT_eSPI.
+- Usa [TFT_eSPI](https://github.com/Bodmer/TFT_eSPI), [TJpg_Decoder](https://github.com/Bodmer/TJpg_Decoder), [ArduinoJson](https://arduinojson.org), [FastAPI](https://fastapi.tiangolo.com), [python-telegram-bot](https://python-telegram-bot.org) y [Open-Meteo](https://open-meteo.com).
