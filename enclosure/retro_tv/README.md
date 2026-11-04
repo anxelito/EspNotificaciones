@@ -33,7 +33,7 @@ Clic derecho en cada cuerpo → **Guardar como malla** → STL.
 | Cuerpo TV | con la **cara delantera en la cama** | 0.2 mm, 3 perímetros, 15 % de relleno |
 | Tapa trasera | con la cara exterior en la cama | |
 | Antena | plana | pega la bola en otro color si quieres |
-| Patas ×4 | de pie | |
+| Patas ×4 | boca abajo (pivote en la cama) | las delanteras son más largas: inclinan la tele `TILT_DEG` grados |
 
 PLA o PETG. Tamaño del cuerpo: 112 × 78 × 72 mm.
 

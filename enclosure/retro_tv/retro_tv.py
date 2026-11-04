@@ -8,7 +8,8 @@ Builds, in the active design (use a NEW, empty design):
   * "Tapa trasera"   -- back lid with locating lip, screw holes, vents and a
                         micro-USB opening.
   * "Antena"         -- rabbit-ear antenna, printed flat, plugs into the top.
-  * "Pata 1..4"      -- little legs that plug into the bottom.
+  * "Pata delantera/trasera" -- legs; the front ones are longer so the TV
+                        leans back TILT_DEG degrees towards you.
 
 All sizes are in millimetres in the PARAMETERS block below: measure your
 parts, edit, and run again in a new design.
@@ -19,7 +20,7 @@ from planes placed at known coordinates, so it does not depend on which way
 Fusion's sketch normals point.
 
 Print (no supports): body front-face DOWN; lid outer face down; antenna flat;
-legs upright. PLA/PETG, 0.2 mm layers, 3 walls.
+legs upside down (peg on the bed). PLA/PETG, 0.2 mm layers, 3 walls.
 """
 import math
 import traceback
@@ -73,6 +74,8 @@ ANT_SOCKET_W, ANT_SOCKET_T = 4.4, 3.6         # hole in the top
 ANT_PEG_W, ANT_T, ANT_LEN, ANT_ANGLE = 4.0, 3.2, 46.0, 25.0
 ANT_SOCKET_Y = 0.6 * D
 LEG_D, LEG_H, LEG_PEG_D, LEG_PEG_H, LEG_HOLE_D = 10.0, 8.0, 6.0, 4.0, 6.4
+TILT_DEG = 12.0                   # leans back so the screen faces you; 0 = upright
+LEG_TIP_R = 4.0                   # rounded foot tip (sits well at any tilt)
 LEG_INSET_X, LEG_INSET_Y = 20.0, 14.0
 FRONT_FILLET = 2.0
 # =============================================================================
@@ -363,15 +366,34 @@ def build():
         b.circle(sk, x1, AY, z1, 4.5)                                                   # ball
     b.sym(b.all_profiles(sk), ANT_T / 2, NEW, name="Antena")
 
-    # ---- 8. legs (upright, beside the body) -------------------------------------
-    for i in range(4):
+    # ---- 8. legs: front ones longer so the TV leans back by TILT_DEG -------------
+    # Printed upside down (peg on the bed); rounded tips touch the table.
+    span = D - 2 * LEG_INSET_Y
+    front_h = LEG_H + span * math.tan(math.radians(TILT_DEG))
+    specs = [("Pata delantera 1", front_h), ("Pata delantera 2", front_h),
+             ("Pata trasera 1", LEG_H), ("Pata trasera 2", LEG_H)]
+    for i, (name, lh) in enumerate(specs):
         x, y = W / 2 + 20.0 + i * (LEG_D + 6), 10.0
-        sk = b.sketch("z", LEG_H / 2)
-        b.circle(sk, x, y, LEG_H / 2, LEG_D / 2)
-        leg = b.sym(b.all_profiles(sk), LEG_H / 2, NEW, name="Pata %d" % (i + 1)).bodies.item(0)
-        sk = b.sketch("z", LEG_H + LEG_PEG_H / 2)
-        b.circle(sk, x, y, LEG_H + LEG_PEG_H / 2, LEG_PEG_D / 2)
+        sk = b.sketch("z", lh / 2)
+        b.circle(sk, x, y, lh / 2, LEG_D / 2)
+        leg = b.sym(b.all_profiles(sk), lh / 2, NEW, name=name).bodies.item(0)
+        sk = b.sketch("z", lh + LEG_PEG_H / 2)
+        b.circle(sk, x, y, lh + LEG_PEG_H / 2, LEG_PEG_D / 2)
         b.sym(b.all_profiles(sk), LEG_PEG_H / 2, JOIN, [leg])
+        try:                                               # round the foot tip
+            tip = None
+            for e in leg.edges:
+                bb = e.boundingBox
+                if abs(bb.maxPoint.z) < 1e-6 and abs(bb.minPoint.z) < 1e-6:
+                    tip = e
+            if tip:
+                ec = adsk.core.ObjectCollection.create()
+                ec.add(tip)
+                fi = comp.features.filletFeatures.createInput()
+                fi.addConstantRadiusEdgeSet(ec, v(LEG_TIP_R), True)
+                comp.features.filletFeatures.add(fi)
+        except Exception:
+            pass
 
     app.activeViewport.fit()
 
