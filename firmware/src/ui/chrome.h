@@ -12,6 +12,7 @@ struct HeaderInfo {
     const RoomReading* room;    // may be null
     bool roomFresh;
     uint16_t bg;                // background (music screen tints it)
+    bool showTime;              // false on Habitacion (it has the big clock)
 };
 
 // Draws into its own rect (0,0,SCREEN_W,HEADER_H); no full-screen clear.

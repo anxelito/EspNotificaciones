@@ -40,10 +40,11 @@ void drawHeader(const HeaderInfo& h) {
     } else {
         strlcpy(buf, "--:--", sizeof(buf));
     }
-    int cw = textWidthIn(buf, UiFont::SMALL);
+    if (h.online && !h.showTime) buf[0] = '\0';     // only the note, if any
+    int cw = buf[0] ? textWidthIn(buf, UiFont::SMALL) : 0;
     int cx = SCREEN_W / 2 - cw / 2 - (h.playing ? 6 : 0);
-    drawText(buf, cx, ty, UiFont::SMALL, col, bg);
-    if (h.playing) drawNote(cx + cw + 6, ty + 3, C_OK);
+    if (buf[0]) drawText(buf, cx, ty, UiFont::SMALL, col, bg);
+    if (h.playing) drawNote(cx + cw + (cw ? 6 : 0), ty + 3, C_OK);
 
     // Right: "22° · 48%" or "--° · --%"
     bool have = h.room && h.room->everOk && h.roomFresh;

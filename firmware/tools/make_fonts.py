@@ -30,7 +30,6 @@ FONTS = [
 def build_vlw(size: int, weight: bytes, chars: list[int]) -> bytes:
     font = ImageFont.truetype(str(TTF), size)
     font.set_variation_by_name(weight)
-    ascent, descent = font.getmetrics()
     space = font.getlength(" ")
 
     glyphs = []
@@ -45,11 +44,13 @@ def build_vlw(size: int, weight: bytes, chars: list[int]) -> bytes:
             bitmap = img.tobytes()
         glyphs.append((cp, h, w, round(font.getlength(ch)), -t, l, bitmap))
 
-    # TFT_eSPI guesses the space width as (ascent + descent) * 2 / 7 and only
-    # uses these two header fields for that, so pick a descent that makes the
-    # guess match the real space width.
-    hdr_descent = max(0, round(space * 7 / 2) - ascent)
-    out = bytearray(struct.pack(">6i", len(glyphs), 11, size, 0, ascent, hdr_descent))
+    # TFT_eSPI starts maxAscent/maxDescent from these two header fields (and
+    # only grows them from the glyphs), and guesses the space width as
+    # (ascent + descent) * 2 / 7. So: header ascent = tallest glyph (else text
+    # is pushed down), descent chosen so the space guess matches the font.
+    hdr_ascent = max(g[4] for g in glyphs)
+    hdr_descent = max(0, round(space * 7 / 2) - hdr_ascent) if 0x41 in chars else 0  # digit-only: no spaces
+    out = bytearray(struct.pack(">6i", len(glyphs), 11, size, 0, hdr_ascent, hdr_descent))
     for cp, h, w, adv, dy, dx, _ in glyphs:
         out += struct.pack(">7i", cp, h, w, adv, dy, dx, 0)
     for *_, bitmap in glyphs:

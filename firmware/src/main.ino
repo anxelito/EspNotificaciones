@@ -47,6 +47,7 @@ struct HeaderKey {
     int      hour, minute, temp, hum;
     Comfort  comfort;                    // temp colour can change without int change
     uint16_t bg;                         // music screen tints the header
+    bool     showTime;
 };
 
 // What the room's clock/info line shows; redraw it only when this changes.
@@ -120,6 +121,8 @@ static void buildHeaderKey(HeaderKey& k, bool timeKnown, int hour, int minute, b
         k.comfort = classifyTemp(room.tempC);
     }
     k.bg = screenBg();
+    k.showTime = ui.screen != Screen::ROOM;
+    if (!k.showTime) { k.hour = 0; k.minute = 0; }   // minute ticks need no header redraw
 }
 
 static void buildScene(SceneInfo& s, bool timeKnown, int hour, int minute) {
@@ -243,6 +246,7 @@ static void render(uint32_t now, bool timeKnown, int hour, int minute, bool newA
             hi.room      = &room;
             hi.roomFresh = fresh;
             hi.bg        = hk.bg;
+            hi.showTime  = hk.showTime;
             drawHeader(hi);
             drawnHeader = hk;
             headerDirty = false;
