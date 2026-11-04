@@ -1,0 +1,37 @@
+# Backend tests, firmware logic tests and a firmware build on every push / PR.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt
+      - run: cd backend && python -m pytest -q
+        env:
+          TELEGRAM_BOT_TOKEN: "123:test"
+          TELEGRAM_SECRET_TOKEN: test
+          API_KEY: test
+          BASE_URL: https://example.com
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install platformio
+      - name: Logic tests (host)
+        run: cd firmware && pio test -e native
+      - name: Build for the ESP32
+        run: |
+          cp firmware/src/secrets.h.example firmware/src/secrets.h
+          cd firmware && pio run -e esp32dev

@@ -126,3 +126,40 @@ async def test_cmd_clear():
     with patch.object(db, "clear_done_tasks", new_callable=AsyncMock, return_value=2):
         await bot.cmd_clear(update, context)
     assert "2" in update.message.reply_text.call_args[0][0]
+
+
+# ---- TELEGRAM_ALLOWED_USERS ---------------------------------------------------
+
+def test_allowed_filter_open_when_unset(monkeypatch):
+    monkeypatch.delenv("TELEGRAM_ALLOWED_USERS", raising=False)
+    assert bot.allowed_users() is None
+
+
+def test_allowed_filter_parses_ids(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_ALLOWED_USERS", " 123, 456 ,")
+    assert bot.allowed_users() == {123, 456}
+
+
+def test_handlers_only_answer_allowed_users(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:ABC")
+    monkeypatch.setenv("TELEGRAM_ALLOWED_USERS", "42")
+    app = bot.build_application()
+    handlers = app.handlers[0]
+    assert handlers, "no handlers registered"
+
+    def upd(uid, text):
+        u = MagicMock(spec=Update)
+        u.effective_user = User(id=uid, first_name="x", is_bot=False)
+        msg = MagicMock(spec=Message)
+        msg.text = text
+        msg.from_user = u.effective_user
+        u.effective_message = msg
+        u.message = msg
+        return u
+
+    for h in handlers:
+        text = "/list" if h.__class__.__name__ == "CommandHandler" else "hola"
+        if h.__class__.__name__ == "CommandHandler":
+            text = "/" + sorted(h.commands)[0]
+        assert not h.filters.check_update(upd(7, text)), f"{h} lets user 7 through"
+        assert h.filters.check_update(upd(42, text)), f"{h} blocks allowed user 42"
