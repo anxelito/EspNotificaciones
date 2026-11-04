@@ -63,6 +63,15 @@ async def test_http_error_and_backoff(monkeypatch):
     assert len(calls) == 1  # second call short-circuited by backoff
 
 
+async def test_403_long_backoff(monkeypatch):
+    # e.g. "Active premium subscription required for the owner of the app"
+    calls = patch_client(monkeypatch, FakeResp(403))
+    assert await spotify.get_now_playing() == {"is_playing": False}
+    assert await spotify.get_now_playing() == {"is_playing": False}
+    assert len(calls) == 1
+    assert spotify._backoff_until - time.time() > 500
+
+
 async def test_429_retry_after(monkeypatch):
     patch_client(monkeypatch, FakeResp(429, headers={"Retry-After": "5"}))
     assert await spotify.get_now_playing() == {"is_playing": False}

@@ -22,6 +22,7 @@ SPOTIFY_NOW_PLAYING_URL = "https://api.spotify.com/v1/me/player/currently-playin
 _PREFERRED_ART_SIZE = 64
 
 _DEFAULT_BACKOFF_S = 60.0
+_FORBIDDEN_BACKOFF_S = 600.0  # 403: retry every 10 min
 _backoff_until: float = 0.0
 
 
@@ -126,6 +127,13 @@ async def _get_now_playing() -> dict:
                 SPOTIFY_NOW_PLAYING_URL,
                 headers={"Authorization": f"Bearer {token}"},
             )
+
+    if resp.status_code == 403:
+        # Not fixable by retrying (e.g. app owner lacks Premium): poll rarely.
+        _backoff(_FORBIDDEN_BACKOFF_S)
+        logger.warning("Spotify API 403, backing off %.0fs: %s",
+                       _FORBIDDEN_BACKOFF_S, resp.text[:200])
+        return {"is_playing": False}
 
     if resp.status_code != 200:
         logger.warning("Spotify API returned %s: %s", resp.status_code, resp.text[:200])
