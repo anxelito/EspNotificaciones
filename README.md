@@ -1,10 +1,10 @@
 # Panel de escritorio ESP32
 
-<p align="center"><img src="docs/designs/robot/hero.png" width="560" alt="Pantalla Habitación: Robot en la estación"></p>
+<p align="center"><img src="docs/designs/perro/hero.png" width="560" alt="Pantalla Habitación: Perrito en el jardín"></p>
 
 Un panel de 2.4" para la mesa con una mascota animada. Muestra la hora, el tiempo y la temperatura de la habitación, tus tareas de Telegram y lo que suena en Spotify. Funciona con un ESP32, una pantalla ST7789, un sensor DHT11 y un botón táctil TTP223.
 
-> **Esta rama:** diseño **E · Robot en la estación**. Cada diseño de la pantalla Habitación vive en su propia rama `design/<nombre>`; consulta la [galería](#diseños-de-la-habitación).
+> **Esta rama:** diseño **B · Perrito en el jardín**. Cada diseño de la pantalla Habitación vive en su propia rama `design/<nombre>`; consulta la [galería](#diseños-de-la-habitación).
 
 ## Qué hace
 
@@ -29,7 +29,7 @@ Hay seis mascotas con su propio escenario. Todas comparten el mismo comportamien
 
 | | | |
 |:-:|:-:|:-:|
-| <img src="docs/designs/robot/dia.gif" width="260" alt="Robot en la estación"><br>**E · Robot en la estación** ⭐<br>[`design/robot`](../../tree/design/robot) | <img src="docs/designs/gato/dia.gif" width="260" alt="Gatito en su cuarto"><br>**A · Gatito en su cuarto**<br>[`design/gato`](../../tree/design/gato) | <img src="docs/designs/perro/dia.gif" width="260" alt="Perrito en el jardín"><br>**B · Perrito en el jardín**<br>[`design/perro`](../../tree/design/perro) |
+| <img src="docs/designs/robot/dia.gif" width="260" alt="Robot en la estación"><br>**E · Robot en la estación**<br>[`design/robot`](../../tree/design/robot) | <img src="docs/designs/gato/dia.gif" width="260" alt="Gatito en su cuarto"><br>**A · Gatito en su cuarto**<br>[`design/gato`](../../tree/design/gato) | <img src="docs/designs/perro/dia.gif" width="260" alt="Perrito en el jardín"><br>**B · Perrito en el jardín** ⭐<br>[`design/perro`](../../tree/design/perro) |
 | <img src="docs/designs/pinguino/dia.gif" width="260" alt="Pingüino en el polo"><br>**C · Pingüino en el polo**<br>[`design/pinguino`](../../tree/design/pinguino) | <img src="docs/designs/pez/dia.gif" width="260" alt="Pececito en la pecera"><br>**D · Pececito en la pecera**<br>[`design/pez`](../../tree/design/pez) | <img src="docs/designs/rana/dia.gif" width="260" alt="Rana en el estanque"><br>**F · Rana en el estanque**<br>[`design/rana`](../../tree/design/rana) |
 
 ⭐ = el diseño de esta rama. Los GIF son capturas reales del firmware: el código de dibujo se compila en el PC (ver [herramientas](#herramientas)).
