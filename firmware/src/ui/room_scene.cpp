@@ -1,4 +1,4 @@
-// firmware/src/ui/room_scene.cpp -- space station room
+// firmware/src/ui/room_scene.cpp -- the fish tank
 #include "room_scene.h"
 #include <math.h>
 #include "theme.h"
@@ -8,23 +8,30 @@
 #include "../display.h"
 
 // ---- palette ----------------------------------------------------------------
-static constexpr uint16_t C_WALL    = rgb565(0x0c, 0x10, 0x20);
-static constexpr uint16_t C_WALL_L  = rgb565(0x14, 0x19, 0x2e);
-static constexpr uint16_t C_FLOOR   = rgb565(0x1a, 0x20, 0x36);
-static constexpr uint16_t C_SEAM    = rgb565(0x2a, 0x33, 0x52);
-static constexpr uint16_t C_SPACE   = rgb565(0x04, 0x06, 0x0f);
-static constexpr uint16_t C_RIM     = rgb565(0x3b, 0x44, 0x60);
-static constexpr uint16_t C_BOLT    = rgb565(0x7a, 0x86, 0xa8);
-static constexpr uint16_t C_STAR    = rgb565(0xdd, 0xdd, 0xee);
-static constexpr uint16_t C_STAR_D  = rgb565(0x66, 0x66, 0x88);
-static constexpr uint16_t C_PANEL   = rgb565(0x1f, 0x27, 0x42);
-static constexpr uint16_t C_LED_OFF = rgb565(0x33, 0x40, 0x5f);
-static constexpr uint16_t C_PLANET  = rgb565(0xb4, 0x8c, 0xff);   // comfort OK
+static constexpr uint16_t C_SAND     = rgb565(0xe6, 0xcf, 0x98);
+static constexpr uint16_t C_SAND_D   = rgb565(0xc8, 0xae, 0x78);
+static constexpr uint16_t C_PEBBLE   = rgb565(0xf4, 0x9a, 0x8a);
+static constexpr uint16_t C_PEBBLE2  = rgb565(0x8a, 0xc4, 0xf0);
+static constexpr uint16_t C_ROCK     = rgb565(0x7d, 0x85, 0x97);
+static constexpr uint16_t C_ROCK_L   = rgb565(0x9a, 0xa2, 0xb4);
+static constexpr uint16_t C_CASTLE   = rgb565(0xb9, 0xb2, 0xcc);
+static constexpr uint16_t C_CASTLE_D = rgb565(0x94, 0x8c, 0xaa);
+static constexpr uint16_t C_DOOR     = rgb565(0x1c, 0x24, 0x38);
+static constexpr uint16_t C_FLAG     = rgb565(0xff, 0x5c, 0x7a);
+static constexpr uint16_t C_WEED     = rgb565(0x3f, 0xbf, 0x6b);
+static constexpr uint16_t C_WEED_D   = rgb565(0x2c, 0x96, 0x52);
+static constexpr uint16_t C_BUBBLE   = rgb565(0xd8, 0xf2, 0xff);
+static constexpr uint16_t C_GLASS    = rgb565(0xc8, 0xec, 0xff);
 
-static const int WIN_CX = 222, WIN_CY = 96, WIN_R = 58;
-static const int PANEL_X = 291, PANEL_Y = 104, PANEL_W = 22, PANEL_H = 56;
+static const int BX = 248, BY = 28, BW = 48, BH = 94;     // bubble column sprite
+static const int CLOCK_W = 200;                            // clock column x 0..200
+static const int CASTLE_X = 244;
+static const float PI_F = 3.14159265f;
 
-static bool    lookNight   = false;
+static TFT_eSprite bub(&tft);
+static bool haveBub = false;
+
+static bool    lookNight = false;
 static Comfort lookComfort = Comfort::UNKNOWN;
 
 Sky skyFromWmo(int c) {
@@ -52,73 +59,108 @@ static const char* skyWord(Sky s) {
     }
 }
 
-void sceneInit() {}
+void sceneInit() {
+    if (haveBub) return;
+    bub.setColorDepth(16);
+    haveBub = bub.createSprite(BW, BH) != nullptr;
+    if (!haveBub) Serial.println("[scene] bubble sprite alloc failed");
+}
 
 void sceneSetLook(bool night, Comfort comfort) {
     lookNight = night;
     lookComfort = comfort;
 }
 
-static uint16_t planetColour() {
+// Water: flat top band (the clock sits on it), then three deeper bands.
+static uint16_t waterTop() {
+    uint16_t c;
     switch (lookComfort) {
-        case Comfort::COLD: return C_COLD;
-        case Comfort::HOT:  return C_HOT;
-        default:            return C_PLANET;
+        case Comfort::COLD: c = rgb565(0x2a, 0x72, 0xc8); break;
+        case Comfort::HOT:  c = rgb565(0x26, 0x8a, 0x7a); break;
+        default:            c = rgb565(0x22, 0x80, 0xb8); break;
     }
+    return lookNight ? mix565(c, rgb565(0x04, 0x08, 0x18), 90) : c;
 }
 
-// Window: space, stars, ringed planet, rim with bolts. Static.
-static void window(TFT_eSPI& g, int ox, int oy) {
-    const int cx = WIN_CX - ox, cy = WIN_CY - oy;
-    g.fillCircle(cx, cy, WIN_R, C_SPACE);
+static uint16_t waterBand(int i) {                          // 0 = top .. 3 = deepest
+    return mix565(waterTop(), rgb565(0x04, 0x10, 0x30), (uint8_t)(255 - i * 34));
+}
 
-    // Stars inside the circle (fixed pseudo-random field).
-    for (int i = 0; i < 46; i++) {
-        int sx = (i * 53 + 11) % (2 * WIN_R) - WIN_R;
-        int sy = (i * 37 + 5) % (2 * WIN_R) - WIN_R;
-        if (sx * sx + sy * sy > (WIN_R - 3) * (WIN_R - 3)) continue;
-        g.drawPixel(cx + sx, cy + sy, (i % 4 == 0) ? C_STAR_D : C_STAR);
-        if (i % 9 == 0) g.drawPixel(cx + sx + 1, cy + sy, C_STAR);
-    }
+static uint16_t dim(uint16_t c) { return lookNight ? mix565(c, rgb565(0x04, 0x08, 0x18), 110) : c; }
 
-    // Planet: lit side + shadow (darker at night), ring in front.
-    const uint16_t pl = planetColour();
-    const int px = cx + 14, py = cy + 16;
-    const uint16_t lit = lookNight ? mix565(pl, 0x0000, 140) : pl;
-    g.fillCircle(px, py, 25, lit);
-    g.fillCircle(px + 8, py - 7, 24, mix565(pl, 0x0000, lookNight ? 60 : 110));
-    g.fillCircle(px - 9, py - 8, 3, mix565(0xFFFF, lit, 80));        // crater / shine
-    const uint16_t ring = mix565(pl, 0xFFFF, lookNight ? 110 : 150);
-    g.drawEllipse(px, py, 42, 9, ring);
-    g.drawEllipse(px, py + 1, 42, 9, ring);
-    if (!lookNight) {                                              // distant sun glare
-        g.fillCircle(cx - 32, cy - 28, 5, rgb565(0xff, 0xe6, 0x9a));
-        g.drawCircle(cx - 32, cy - 28, 8, rgb565(0x80, 0x73, 0x4d));
-    }
+// ---- static tank -------------------------------------------------------------------
 
-    // Rim: thick ring + bolts.
-    for (int r = WIN_R; r < WIN_R + 6; r++) g.drawCircle(cx, cy, r, C_RIM);
-    for (int a = 0; a < 8; a++) {
-        float t = a * 3.14159265f / 4.0f;
-        g.fillCircle(cx + (int)lroundf(cosf(t) * (WIN_R + 3)),
-                     cy + (int)lroundf(sinf(t) * (WIN_R + 3)), 2, C_BOLT);
+static void weed(TFT_eSPI& g, int x, int base, int h, int phase, uint16_t c, int ox, int oy) {
+    int px = x, py = base;
+    for (int k = 1; k <= h / 10; k++) {
+        int nx = x + (int)lroundf(5.0f * sinf(k * 0.9f + phase));
+        int ny = base - k * 10;
+        for (int d = -2; d <= 2; d++) g.drawLine(px + d - ox, py - oy, nx + d - ox, ny - oy, c);
+        px = nx; py = ny;
     }
+    g.fillCircle(px - ox, py - oy, 3, c);
+}
+
+static void castle(TFT_eSPI& g, int ox, int oy) {
+    const int x = CASTLE_X - ox, base = ROOM_FLOOR_Y + 2 - oy;
+    const uint16_t c = dim(C_CASTLE), cd = dim(C_CASTLE_D);
+    g.fillRect(x + 8, base - 40, 44, 42, c);                 // keep
+    g.fillRect(x, base - 54, 16, 56, c);                     // left tower
+    g.fillRect(x + 44, base - 54, 16, 56, c);                // right tower
+    for (int i = 0; i < 3; i++) {                            // battlements
+        g.fillRect(x + i * 6, base - 60, 4, 7, c);
+        g.fillRect(x + 44 + i * 6, base - 60, 4, 7, c);
+        g.fillRect(x + 14 + i * 12, base - 46, 6, 7, c);
+    }
+    g.drawFastVLine(x + 16, base - 40, 42, cd);
+    g.drawFastVLine(x + 43, base - 40, 42, cd);
+    for (int y = base - 30; y < base; y += 10) g.drawFastHLine(x + 17, y, 26, cd);
+    g.fillRoundRect(x + 23, base - 22, 14, 24, 6, C_DOOR);
+    g.fillRoundRect(x + 5, base - 44, 6, 9, 3, C_DOOR);
+    g.fillRoundRect(x + 49, base - 44, 6, 9, 3, C_DOOR);
+    g.drawFastVLine(x + 52, base - 72, 13, cd);
+    g.fillTriangle(x + 53, base - 72, x + 53, base - 65, x + 61, base - 69, dim(C_FLAG));
 }
 
 void drawSceneLower(TFT_eSPI& g, int ox, int oy) {
-    // Wall with two faint panel seams.
-    g.fillRect(-ox, HEADER_H - oy, SCREEN_W, ROOM_FLOOR_Y - HEADER_H, C_WALL);
-    g.drawFastHLine(-ox, 112 - oy, SCREEN_W, C_WALL_L);
-    g.drawFastHLine(-ox, 140 - oy, SCREEN_W, C_WALL_L);
-    window(g, ox, oy);
-    // Control panel housing (lights are animated in drawSceneAnim).
-    g.fillRoundRect(PANEL_X - ox, PANEL_Y - oy, PANEL_W, PANEL_H, 4, C_PANEL);
-    // Metal floor with seams.
-    g.fillRect(-ox, ROOM_FLOOR_Y - oy, SCREEN_W, ROOM_STRIP_Y - ROOM_FLOOR_Y, C_FLOOR);
-    g.drawFastHLine(-ox, ROOM_FLOOR_Y - oy, SCREEN_W, C_SEAM);
-    g.drawFastHLine(-ox, ROOM_FLOOR_Y + 1 - oy, SCREEN_W, C_SEAM);
-    for (int x = 0; x < SCREEN_W; x += 32)
-        g.drawFastVLine(x - ox, ROOM_FLOOR_Y + 2 - oy, ROOM_STRIP_Y - ROOM_FLOOR_Y - 2, C_SEAM);
+    // Water bands.
+    const int bands[] = { HEADER_H, 92, 118, 144, ROOM_FLOOR_Y };
+    for (int i = 0; i < 4; i++)
+        g.fillRect(-ox, bands[i] - oy, SCREEN_W, bands[i + 1] - bands[i], waterBand(i));
+    // Light shafts (day) below the clock: slanted lighter stripes.
+    if (!lookNight) {
+        for (int k = 0; k < 3; k++) {
+            int x0 = 40 + k * 90;
+            for (int y = 92; y < ROOM_FLOOR_Y; y += 2) {
+                int band = y < 118 ? 1 : (y < 144 ? 2 : 3);
+                int x = x0 + (y - 92) / 3;
+                g.drawFastHLine(x - ox, y - oy, 14, mix565(0xFFFF, waterBand(band), 26));
+            }
+        }
+    }
+    // Glass reflection on the left edge.
+    g.drawFastVLine(3 - ox, 96 - oy, 50, mix565(C_GLASS, waterBand(1), 60));
+    g.drawFastVLine(5 - ox, 104 - oy, 22, mix565(C_GLASS, waterBand(1), 40));
+
+    // Seaweed + rocks.
+    weed(g, 16, ROOM_FLOOR_Y + 4, 56, 0, dim(C_WEED_D), ox, oy);
+    weed(g, 28, ROOM_FLOOR_Y + 4, 40, 2, dim(C_WEED), ox, oy);
+    weed(g, 214, ROOM_FLOOR_Y + 4, 62, 1, dim(C_WEED), ox, oy);
+    weed(g, 226, ROOM_FLOOR_Y + 4, 44, 3, dim(C_WEED_D), ox, oy);
+    g.fillEllipse(66 - ox, ROOM_FLOOR_Y + 2 - oy, 16, 9, dim(C_ROCK));
+    g.fillEllipse(62 - ox, ROOM_FLOOR_Y - 2 - oy, 8, 3, dim(C_ROCK_L));
+    g.fillEllipse(86 - ox, ROOM_FLOOR_Y + 4 - oy, 10, 6, dim(C_ROCK_L));
+
+    // Sand with a wavy top and pebbles.
+    for (int x = 0; x < SCREEN_W; x++) {
+        int top = ROOM_FLOOR_Y + (int)lroundf(2.0f * sinf(x / 22.0f));
+        g.drawFastVLine(x - ox, top - oy, ROOM_STRIP_Y - top, dim(C_SAND));
+    }
+    for (int i = 0; i < 20; i++) {
+        int px = (i * 47 + 11) % SCREEN_W, py = ROOM_FLOOR_Y + 5 + (i * 7) % 9;
+        g.fillCircle(px - ox, py - oy, 1, dim(i % 3 == 0 ? C_PEBBLE : (i % 3 == 1 ? C_PEBBLE2 : C_SAND_D)));
+    }
+    castle(g, ox, oy);
 }
 
 void sceneRepaintRect(int x, int y, int w, int h) {
@@ -128,29 +170,38 @@ void sceneRepaintRect(int x, int y, int w, int h) {
     tft.resetViewport();
 }
 
+// ---- bubbles -----------------------------------------------------------------------
+
 void drawSceneAnim(uint32_t now) {
-    // 2 x 4 lights chasing; one shows the comfort colour.
-    const uint16_t on[] = { C_OK, C_COLD, C_OK, C_HOT };
-    int step = (int)(now / 280) % 8;
-    for (int i = 0; i < 8; i++) {
-        int col = i % 2, row = i / 2;
-        int x = PANEL_X + 7 + col * 8, y = PANEL_Y + 9 + row * 12;
-        bool lit = (i == step) || ((i + 3) % 8 == step) || (i == 7 && (now / 900) % 2);
-        tft.fillCircle(x, y, 2, lit ? on[i % 4] : C_LED_OFF);
+    if (!haveBub) return;
+    TFT_eSPI& g = bub;
+    drawSceneLower(g, BX, BY);
+    const uint32_t speed = lookNight ? 2 : 1;               // slower at night
+    for (int i = 0; i < 7; i++) {
+        uint32_t period = (2600 + i * 230) * speed;
+        float ph = (float)((now + i * 977) % period) / (float)period;
+        int x = (i % 2 ? 266 : 286) + (int)lroundf(3.0f * sinf(ph * 12.0f + i));   // from the towers
+        int y = ROOM_FLOOR_Y - 60 - (int)(ph * (BH - 8));
+        if (y < BY + 2) continue;
+        int r = 1 + i % 3;
+        uint16_t c = mix565(C_BUBBLE, waterBand(y < 92 ? 0 : 1), 170);
+        g.drawCircle(x - BX, y - BY, r, c);
+        g.drawPixel(x - BX - (r > 1 ? 1 : 0), y - BY - (r > 1 ? 1 : 0), C_BUBBLE);
     }
+    bub.pushSprite(BX, BY);
 }
 
-// ---- clock + info line -----------------------------------------------------------
+// ---- clock + info line ------------------------------------------------------------
 
 void drawRoomClock(const SceneInfo& s) {
-    const int x0 = 0, x1 = WIN_CX - WIN_R - 8;            // left of the window rim
-    const int maxW = x1 - x0 - 2 * MARGIN;
-    tft.fillRect(x0, HEADER_H + 1, x1 - x0, ROOM_CAT_Y - HEADER_H - 1, C_WALL);
+    sceneRepaintRect(0, HEADER_H, CLOCK_W, ROOM_CAT_Y - HEADER_H);
+    const uint16_t bg = waterTop();
+    const int maxW = CLOCK_W - 2 * MARGIN;
 
     char buf[48];
     if (s.timeKnown) snprintf(buf, sizeof(buf), "%02d:%02d", s.hour, s.minute);
     else             strlcpy(buf, "--:--", sizeof(buf));
-    drawTextCentre(buf, ROOM_CLOCK_CX, 30, UiFont::CLOCK, C_TEXT, C_WALL);
+    drawTextCentre(buf, ROOM_CLOCK_CX, 30, UiFont::CLOCK, C_TEXT, bg);
 
     static const char* const DAYS[] = { "dom", "lun", "mar", "mié", "jue", "vie", "sáb" };
     static const char* const MONTHS[] = { "ene", "feb", "mar", "abr", "may", "jun",
@@ -161,7 +212,6 @@ void drawRoomClock(const SceneInfo& s) {
     const int t = (int)lroundf(s.outTemp);
     const char* word = s.weatherOk ? skyWord(skyFromWmo(s.weatherCode)) : "";
 
-    // Longest variant that fits the column: full, no month, no sky word, ...
     char cand[5][48] = {};
     int n = 0;
     if (haveDate && s.weatherOk) {
@@ -175,11 +225,12 @@ void drawRoomClock(const SceneInfo& s) {
         snprintf(cand[n++], 48, "%d° %s", t, word);
         snprintf(cand[n++], 48, "%d°", t);
     }
+    const uint16_t infoCol = mix565(C_TEXT, bg, 190);
     for (int i = 0; i < n; i++) {
         if (textWidthIn(cand[i], UiFont::SMALL) <= maxW || i == n - 1) {
             char fit[48];
-            fitText(cand[i], fit, sizeof(fit), maxW, UiFont::SMALL);   // last resort
-            drawTextCentre(fit, ROOM_CLOCK_CX, 68, UiFont::SMALL, C_MUTED, C_WALL);
+            fitText(cand[i], fit, sizeof(fit), maxW, UiFont::SMALL);
+            drawTextCentre(fit, ROOM_CLOCK_CX, 68, UiFont::SMALL, infoCol, bg);
             break;
         }
     }
