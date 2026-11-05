@@ -17,9 +17,8 @@ Las ST7789 de 2.4" cambian según el fabricante. Comprueba con un calibre:
 
 | Parámetro | Qué es | Por defecto |
 |---|---|---|
-| `PCB_W`, `PCB_H` | placa de la pantalla, en horizontal | 71 × 43 |
-| `PCB_HOLE_INSET` | centro de los agujeros desde el borde | 2.5 |
-| `GLASS_T` | del frente del cristal al frente del PCB | 3.5 |
+| `PCB_W`, `PCB_H` | pantalla entera (cristal + placa), en horizontal | 63 × 38 |
+| `SCREEN_T` | grosor de la pantalla: del cristal a la parte de atrás de la placa | 5 |
 | `WIN_W`, `WIN_H` | zona que se ve | 49.5 × 37.2 |
 | `WIN_OFF_X` | cuánto se desplaza la zona visible respecto al centro del PCB | 0 |
 | `TTP_W`, `TTP_H` | placa del TTP223 | 15 × 11 |
@@ -59,7 +58,7 @@ Para exportar todo de una vez: clic derecho en el componente raíz → **Guardar
 PLA o PETG. Tamaño del cuerpo: 112 × 78 × 72 mm.
 
 ## Montaje
-1. **Pantalla:** 4 tornillos **M2 × 6** en los postes de delante. Comprueba que la imagen queda centrada en la ventana.
+1. **Pantalla:** métela boca abajo entre las 4 guías de las esquinas, con el cristal contra el frente. Comprueba que la imagen queda centrada en la ventana y fíjala con una gota de cola caliente (o cinta de doble cara) en cada esquina.
 2. **Botón táctil (TTP223):** mételo en el hueco rectangular que hay justo detrás de la rueda de arriba, con la cara del pad (la que no lleva componentes) contra la pared. La pared ahí mide 1.2 mm, así que el plástico no se nota: **tocar la rueda cambia de pantalla**. Sujétalo con cinta de doble cara fina, sin aire entre el pad y la pared. Si no responde bien, baja `TOUCH_WALL` a 1.0.
 3. **Sensor de temperatura (DHT11 en plaquita):** va en la guía de la cara interior de la tapa trasera, arriba a la izquierda, detrás de las rejillas.
    - Mételo con la rejilla del sensor contra la tapa, entrando por el lado de los pines, hasta que toque el tope.
