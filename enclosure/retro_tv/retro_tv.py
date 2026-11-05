@@ -85,6 +85,16 @@ USB_GAP = 1.5                     # USB connector face -> lid inner face
 USB_W, USB_H = 13.0, 9.0          # lid opening for the power cable (plug moulding ~11 x 7.5)
 USB_Z = WALL + RAIL_H + 1.6 + 1.5 # micro-USB centre height
 
+# USB-C power-in module (small breakout PCB, receptacle on one short edge),
+# held flat in an open-top pocket on the lid: receptacle through the lid,
+# PCB front edge against the lid, stops behind it. Measure yours!
+USBC_W, USBC_L, USBC_PCB_T = 14.0, 12.0, 1.6  # PCB width (across), length, thickness
+USBC_OUT = 1.0                    # receptacle mouth ahead of the PCB front edge
+USBC_SHELL_W, USBC_SHELL_H = 8.94, 3.26       # receptacle shell (USB-C standard)
+USBC_CX, USBC_Z0 = -20.0, 12.0    # module centre X, PCB underside Z
+USBC_CLEAR = 0.3                  # pocket clearance
+USBC_PLUG_W, USBC_PLUG_H = 13.5, 8.0          # outside recess for the plug moulding
+
 # Lid and screws
 LID_T, LIP_H, LIP_T, LIP_CLEAR = 2.4, 3.0, 1.6, 0.25
 POST_R, PILOT_D, SCREW_D = 3.5, 2.5, 3.2      # M3 self-tapping, or M2.5
@@ -413,6 +423,38 @@ def build():
     b.rrect(sk, front(LID_Y - dep / 2), xs - DHTM_RAIL_T / 2, DHTM_CZ, DHTM_RAIL_T,
             2 * (gz + DHTM_RAIL_T), 0.2)
     b.sym(b.all_profiles(sk), dep / 2 + 0.1, JOIN, LID)
+
+    # USB-C module pocket: per side a ledge under the PCB edge and a wall
+    # beside it, from the lid inwards; a stop behind each rear corner. The
+    # module drops in from above (the TV stands on its legs, so it rests on
+    # the ledges); its front edge sits on the lid. All of it stands straight
+    # up from the lid when printed, no overhangs.
+    hw = USBC_W / 2 + USBC_CLEAR
+    z0, z1 = USBC_Z0 - 3.0, USBC_Z0 + USBC_PCB_T + 2.0
+    ya, yb = LID_Y + 0.2, LID_Y - USBC_L - USBC_CLEAR
+    ym = (ya + yb) / 2
+    sk = b.sketch("y", ym)
+    for sx in (-1, 1):
+        xe, xl, xw = USBC_CX + sx * hw, USBC_CX + sx * (hw - 1.5), USBC_CX + sx * (hw + 2.0)
+        b.poly(sk, [(xl, ym, z0), (xw, ym, z0), (xw, ym, z1), (xe, ym, z1),
+                    (xe, ym, USBC_Z0), (xl, ym, USBC_Z0)])
+    b.sym(b.all_profiles(sk), (ya - yb) / 2, JOIN, LID)
+    sk = b.sketch("y", yb - 0.75)
+    for sx in (-1, 1):
+        b.rrect(sk, front(yb - 0.75), USBC_CX + sx * (hw + 0.25), (z0 + USBC_Z0 + USBC_PCB_T + 1.0) / 2,
+                3.5, USBC_Z0 + USBC_PCB_T + 1.0 - z0, 0.2)
+    b.sym(b.all_profiles(sk), 0.8, JOIN, LID)
+    # Opening: the receptacle fits through a thin ring; the plug moulding
+    # sits in a recess from outside so it reaches all the way in.
+    uz = USBC_Z0 + USBC_PCB_T + USBC_SHELL_H / 2
+    ring = min(LID_T, max(0.6, USBC_OUT))
+    sk = b.sketch("y", LID_Y + LID_T / 2)
+    b.rrect(sk, front(LID_Y + LID_T / 2), USBC_CX, uz, USBC_SHELL_W + 0.6, USBC_SHELL_H + 0.6, 1.5)
+    b.sym(b.all_profiles(sk), LID_T / 2 + 0.5, CUT, LID)
+    if ring < LID_T:
+        sk = b.sketch("y", LID_Y + LID_T)
+        b.rrect(sk, front(LID_Y + LID_T), USBC_CX, uz, USBC_PLUG_W, USBC_PLUG_H, 2.5)
+        b.sym(b.all_profiles(sk), LID_T - ring, CUT, LID)
 
     # ---- 7. antenna (flat, in front of the body) -------------------------------
     AY = -40.0
