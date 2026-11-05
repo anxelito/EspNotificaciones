@@ -26,11 +26,14 @@ Las ST7789 de 2.4" cambian según el fabricante. Comprueba con un calibre:
 | `DHTM_STACK` | de la cara del sensor a la parte de atrás de la plaquita | 10 |
 | `ESP_L` | largo del ESP32, con el conector micro-USB incluido | 55 |
 | `RAIL_OFF` | dónde van los raíles del ESP32: entre sus dos filas de pines | 8 |
+| `USBC_W`, `USBC_L` | placa del módulo USB-C: ancho (lado del conector) y largo | 14 × 12 |
+| `USBC_PCB_T` | grosor de esa placa | 1.6 |
+| `USBC_OUT` | cuánto sobresale la boca del conector por delante del borde de la placa | 1 |
 
 Muchas placas tienen el cristal desplazado unos milímetros hacia el lado contrario a los pines. Mídelo y ponlo en `WIN_OFF_X`. Es positivo si el cristal está a la derecha.
 
 ## Comprobar que todo cabe
-`fit_check.py` reconstruye en 3D la caja con las mismas medidas del script. Mete dentro la pantalla, el ESP32, el DHT11, el TTP223, las clavijas dupont y el cable USB, y avisa de cualquier choque:
+`fit_check.py` reconstruye en 3D la caja con las mismas medidas del script. Mete dentro la pantalla, el ESP32, el DHT11, el TTP223, el módulo USB-C, las clavijas dupont y los cables USB, y avisa de cualquier choque:
 
 ```bash
 pip install manifold3d
@@ -68,7 +71,12 @@ PLA o PETG. Tamaño del cuerpo: 112 × 78 × 72 mm.
    - Conecta sus cables antes de cerrar la tapa.
 4. **ESP32:** apóyalo sobre los dos raíles del suelo, con los pines hacia abajo y el micro-USB hacia atrás. Los raíles quedan entre las dos filas de pines y miden 21 mm de alto, así que caben las clavijas dupont por debajo. Empújalo hacia delante hasta el tope del raíl derecho. Así el conector queda justo detrás del agujero de la tapa. Una gota de cola caliente basta.
 5. **Antena y patas:** encájalas arriba y abajo; una gota de pegamento si quedan sueltas.
-6. **Tapa:** 4 tornillos **M3 × 8** autorroscantes en los postes de las esquinas.
-7. **Alimentación:** enchufa el cable micro-USB por el hueco de la tapa trasera, con la tapa ya cerrada. El ESP32 alimenta la pantalla, el TTP223 y el DHT11, así que no hace falta otro cable.
+6. **Módulo USB-C (alimentación):** va en el bolsillo de la cara interior de la tapa, abajo a la izquierda.
+   - Suelda dos cables: **VBUS (o 5V) → pin 5V/VIN del ESP32** y **GND → GND**.
+   - Déjalo caer en el bolsillo con el conector hacia arriba y hacia la tapa: el conector entra por el agujero pequeño y el borde de la placa toca la tapa.
+   - Los topes de detrás aguantan al enchufar. Una gota de cola caliente evita que se mueva al desenchufar.
+   - Si tu módulo tiene dos resistencias de 5.1 kΩ en CC1/CC2 (casi todos), funciona con cargadores USB-C a USB-C. Sin ellas, solo con cables USB-A a USB-C.
+7. **Tapa:** 4 tornillos **M3 × 8** autorroscantes en los postes de las esquinas.
+8. **Alimentación:** enchufa el cable USB-C en la tapa trasera. El ESP32 alimenta la pantalla, el TTP223 y el DHT11. El agujero del micro-USB del ESP32 sigue ahí para flashearlo sin abrir la caja; no enchufes los dos cables a la vez.
 
 El cableado entre piezas está en [`firmware/WIRING.md`](../../firmware/WIRING.md).

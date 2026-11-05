@@ -241,7 +241,7 @@ Tu `secrets.h` se conserva al cambiar de rama. Puedes ver todas las mascotas en 
 
 La caja **Mini TV retro** es un script paramétrico de Fusion 360:
 - deja las piezas listas para imprimir sin soportes;
-- tiene sitio para el TTP223 detrás de una pared de 1.2 mm, una guía para el DHT11 y la salida del cable USB;
+- tiene sitio para el TTP223 detrás de una pared de 1.2 mm, una guía para el DHT11 y un bolsillo para un módulo USB-C de alimentación;
 - está inclinada para que veas bien la pantalla.
 
 Instrucciones en [`enclosure/retro_tv/README.md`](../enclosure/retro_tv/README.md). El [visor 3D](../enclosure/viewer) tiene más ideas de caja.
