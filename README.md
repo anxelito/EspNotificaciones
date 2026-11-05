@@ -184,6 +184,7 @@ Pruébalo: `git checkout design/rana`
 | DHT11 | 1.5 € | temperatura y humedad |
 | TTP223 | 0.5 € | botón táctil; funciona a través de 1.2 mm de plástico. Opcional: sin él, el botón BOOT de la placa hace lo mismo |
 | Cables dupont y un cable micro-USB | | |
+| Módulo USB-C hembra (breakout) | 0.5 € | opcional: entrada de alimentación USB-C en la caja |
 | Impresora 3D | | opcional, para la [caja Mini TV retro](enclosure/retro_tv) |
 
 ### Cableado
