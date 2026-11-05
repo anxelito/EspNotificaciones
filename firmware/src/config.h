@@ -33,6 +33,10 @@
 #define PIN_BOOT_BTN   0      // on-board BOOT button acts like the touch pad; -1 = off
 #define BACKLIGHT_PIN  -1     // -1 = no dimming
 
+// Sensor diagnostics on the serial monitor (pio device monitor, 115200):
+// every DHT11 read and every change on the touch pin. 0 = quiet.
+#define SENSOR_DEBUG   1
+
 // Room comfort thresholds
 #define TEMP_COLD_BELOW  18.0f
 #define TEMP_HOT_ABOVE   25.0f
