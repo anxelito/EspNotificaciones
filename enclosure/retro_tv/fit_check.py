@@ -173,7 +173,7 @@ def components(solder, header_side):
     c["DHT11 (placa)"] = box(x0, x0 + L, D - 7.1, D - 5.5, cz - Wd / 2, cz + Wd / 2)
     reach = 2.5 + (4.0 if solder else DUPONT)
     if PINS == "angle":
-        c["DHT11 (pines%s)" % ("" if solder else " + dupont")] = box(x0 + L - 3, x0 + L - 3 + reach + 3, D - 7.1 - 2.5, D - 5.5,
+        c["DHT11 (pines%s)" % ("" if solder else " + dupont")] = box(x0 + L - g("DHTM_PIN_END"), x0 + L + reach, D - 7.1 - 2.5, D - 5.5,
                                                                     cz - 4, cz + 4)
     else:
         c["DHT11 (pines%s)" % ("" if solder else " + dupont")] = box(x0 + L - 3.5, x0 + L - 1, D - 7.1 - reach, D - 7.1,
