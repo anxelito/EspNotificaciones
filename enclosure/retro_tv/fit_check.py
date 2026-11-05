@@ -72,10 +72,19 @@ def enclosure():
     corners = [(sx * (W / 2 - R), z) for sx in (-1, 1) for z in (R, H - R)]
     parts["postes tapa"] = sum((cyl_y(x, z, g("POST_R"), WALL, D) for x, z in corners), Manifold())
 
-    hx, hz = g("PCB_W") / 2 - g("PCB_HOLE_INSET"), g("PCB_H") / 2 - g("PCB_HOLE_INSET")
     scx, scz = g("SCR_CX"), g("SCR_CZ")
-    parts["postes pantalla"] = sum((cyl_y(scx + sx * hx, scz + sz * hz, g("SCREEN_POST_R"), WALL, WALL + g("GLASS_T"))
-                                    for sx in (-1, 1) for sz in (-1, 1)), Manifold())
+    gx, gz = g("PCB_W") / 2 + g("SCR_CLEAR"), g("PCB_H") / 2 + g("SCR_CLEAR")
+    t, leg, st = g("SCR_FRAME_T"), g("SCR_FRAME_LEG"), g("SCREEN_T")
+    guides = Manifold()
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            xo, xi = sorted((scx + sx * (gx + t), scx + sx * (gx - leg)))
+            zo, zi = sorted((scz + sz * (gz + t), scz + sz * gz))
+            guides += box(xo, xi, WALL, WALL + st, zo, zi)
+            xo, xi = sorted((scx + sx * (gx + t), scx + sx * gx))
+            zo, zi = sorted((scz + sz * (gz + t), scz + sz * (gz - leg)))
+            guides += box(xo, xi, WALL, WALL + st, zo, zi)
+    parts["guías pantalla"] = guides
 
     ESP_CX, ESP_W, RAIL_T, RAIL_H = g("ESP_CX"), g("ESP_W"), g("RAIL_T"), g("RAIL_H")
     y1r = D - g("LIP_H") - 1.0
@@ -136,7 +145,9 @@ def components(solder, header_side):
     scx, scz = g("SCR_CX"), g("SCR_CZ")
     pcb_y0 = WALL + g("GLASS_T")                              # PCB front face
     # Screen: LCD + backlight in front of the PCB, PCB, 8-pin header on a short edge.
-    c["pantalla (LCD)"] = box(scx - 30.2, scx + 30.2, WALL + 0.05, pcb_y0, scz - 21.4, scz + 21.4)
+    # Glass: assume it covers the whole module outline (worst case).
+    c["pantalla (LCD)"] = box(scx - g("PCB_W") / 2, scx + g("PCB_W") / 2, WALL + 0.05, pcb_y0,
+                              scz - g("PCB_H") / 2, scz + g("PCB_H") / 2)
     c["pantalla (PCB)"] = box(scx - g("PCB_W") / 2, scx + g("PCB_W") / 2, pcb_y0, pcb_y0 + 1.6,
                               scz - g("PCB_H") / 2, scz + g("PCB_H") / 2)
     hx = scx + (1 if header_side == "right" else -1) * (g("PCB_W") / 2 - 2.5)
