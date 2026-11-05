@@ -64,7 +64,7 @@ SIDE_Y0, SIDE_Z0 = 34.0, 26.0     # first slot: front end (Y), bottom (Z)
 # DHT11 on its little PCB (3-pin module), held on the inside of the back lid
 # behind the vents, top left: far from the ESP32's heat. Measure yours!
 DHTM_L, DHTM_W = 30.0, 17.0       # module: length WITH the pins (at one end), width
-DHTM_STACK = 7.1                  # sensor face to PCB back (sensor 5.5 + PCB 1.6)
+DHTM_STACK = 10.0                 # sensor face to PCB back (measured)
 DHTM_CX, DHTM_CZ = -24.0, 60.0    # module centre on the lid (X, Z)
 DHTM_CLEAR = 0.3                  # slide clearance
 DHTM_RAIL_T, DHTM_LIP = 1.6, 1.2  # cradle rail thickness, lip over the PCB edge
