@@ -24,7 +24,7 @@ Las ST7789 de 2.4" cambian según el fabricante. Comprueba con un calibre:
 | `WIN_OFF_X` | cuánto se desplaza la zona visible respecto al centro del PCB | 0 |
 | `TTP_W`, `TTP_H` | placa del TTP223 | 15 × 11 |
 | `DHTM_L`, `DHTM_W` | plaquita del DHT11: largo con los pines incluidos y ancho | 30 × 17 |
-| `DHTM_STACK` | de la cara del sensor a la parte de atrás de la plaquita | 7.1 |
+| `DHTM_STACK` | de la cara del sensor a la parte de atrás de la plaquita | 10 |
 | `ESP_L` | largo del ESP32, con el conector micro-USB incluido | 55 |
 | `RAIL_OFF` | dónde van los raíles del ESP32: entre sus dos filas de pines | 8 |
 
