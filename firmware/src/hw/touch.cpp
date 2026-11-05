@@ -13,6 +13,16 @@ void touchInit() {
 
 bool touchPressed() {
     bool pressed = digitalRead(PIN_TOUCH) == HIGH;
+#if SENSOR_DEBUG
+    static int last = -1;
+    if ((int)pressed != last) {
+        if (last >= 0 || pressed)
+            Serial.printf("[touch] GPIO%d %s\n", PIN_TOUCH, pressed ? "ALTO (tocando)" : "BAJO (suelto)");
+        else
+            Serial.printf("[touch] GPIO%d BAJO al arrancar (ok si no lo tocas)\n", PIN_TOUCH);
+        last = pressed;
+    }
+#endif
 #if PIN_BOOT_BTN >= 0
     pressed = pressed || digitalRead(PIN_BOOT_BTN) == LOW;  // BOOT is active-low
 #endif
