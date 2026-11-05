@@ -128,6 +128,26 @@ def enclosure():
         cr += box(xs - rt, xe, D - dep - rt, D - dep, llo, lhi)
     cr += box(xs - rt, xs, D - dep, D, cz - gz - rt, cz + gz + rt)
     parts["guía DHT11 (tapa)"] = cr
+
+    # USB-C module pocket on the lid + its opening (lid inner face at Y = D).
+    hw = g("USBC_W") / 2 + g("USBC_CLEAR")
+    cx, zb, pt = g("USBC_CX"), g("USBC_Z0"), g("USBC_PCB_T")
+    z0, z1 = zb - 3.0, zb + pt + 2.0
+    yb = D - g("USBC_L") - g("USBC_CLEAR")
+    pk = Manifold()
+    for sx in (-1, 1):
+        xl, xe, xw = cx + sx * (hw - 1.5), cx + sx * hw, cx + sx * (hw + 2.0)
+        pk += box(min(xl, xe), max(xl, xe), yb, D, z0, zb)          # ledge
+        pk += box(min(xe, xw), max(xe, xw), yb, D, z0, z1)          # wall
+        sx0, sx1 = sorted((cx + sx * (hw - 1.5), cx + sx * (hw + 2.0)))
+        pk += box(sx0, sx1, yb - 1.55, yb, z0, zb + pt + 1.0)       # rear stop
+    parts["bolsillo USB-C (tapa)"] = pk
+    uz = zb + pt + g("USBC_SHELL_H") / 2
+    ring = min(g("LID_T"), max(0.6, g("USBC_OUT")))
+    cut = rrect_y(cx, uz, g("USBC_SHELL_W") + 0.6, g("USBC_SHELL_H") + 0.6, 1.5, D - 1, D + g("LID_T") + 1)
+    if ring < g("LID_T"):
+        cut += rrect_y(cx, uz, g("USBC_PLUG_W"), g("USBC_PLUG_H"), 2.5, D + ring, D + g("LID_T") + 1)
+    parts["tapa"] = parts["tapa"] - cut
     return parts
 
 
@@ -190,6 +210,19 @@ def components(solder, header_side):
     else:
         c["DHT11 (pines%s)" % ("" if solder else " + dupont")] = box(x0 + L - 3.5, x0 + L - 1, D - st - reach, D - st,
                                                                     cz - 4, cz + 4)
+
+    # USB-C module: PCB front edge on the lid, receptacle on top, wires
+    # soldered to the pads at the rear, plug + cable outside.
+    cx, zb, pt = g("USBC_CX"), g("USBC_Z0"), g("USBC_PCB_T")
+    hw, L = g("USBC_W") / 2, g("USBC_L")
+    sw, sh = g("USBC_SHELL_W"), g("USBC_SHELL_H")
+    mouth = D + g("USBC_OUT")
+    c["USB-C (placa)"] = box(cx - hw, cx + hw, D - L, D - 0.05, zb, zb + pt)
+    c["USB-C (conector)"] = box(cx - sw / 2, cx + sw / 2, mouth - 7.35, mouth, zb + pt, zb + pt + sh)
+    c["USB-C (cables)"] = box(cx - 5, cx + 5, D - L - 8, D - L + 3, zb + pt, zb + pt + 3)
+    uz = zb + pt + sh / 2
+    c["USB-C (clavija)"] = box(cx - 4.1, cx + 4.1, mouth - 6.2, mouth + 0.45, uz - 1.2, uz + 1.2)
+    c["USB-C (funda)"] = box(cx - 6, cx + 6, mouth + 0.45, mouth + 25, uz - 3.2, uz + 3.2)
 
     # TTP223 in its pocket, components and wires behind.
     tx, tz = g("KNOB_X"), g("KNOB_TOUCH_Z")
