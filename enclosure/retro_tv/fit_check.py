@@ -169,14 +169,15 @@ def components(solder, header_side):
     # 3 pins at the end: right-angle (along +X) or straight (into the box).
     L, Wd, cz = g("DHTM_L"), g("DHTM_W"), g("DHTM_CZ")
     x0 = g("DHTM_CX") - L / 2
-    c["DHT11 (sensor)"] = box(x0, x0 + 15.5, D - 5.5, D - 0.05, cz - 6, cz + 6)
-    c["DHT11 (placa)"] = box(x0, x0 + L, D - 7.1, D - 5.5, cz - Wd / 2, cz + Wd / 2)
+    st = g("DHTM_STACK")
+    c["DHT11 (sensor)"] = box(x0, x0 + 15.5, D - (st - 1.6), D - 0.05, cz - 6, cz + 6)
+    c["DHT11 (placa)"] = box(x0, x0 + L, D - st, D - (st - 1.6), cz - Wd / 2, cz + Wd / 2)
     reach = 2.5 + (4.0 if solder else DUPONT)
     if PINS == "angle":
-        c["DHT11 (pines%s)" % ("" if solder else " + dupont")] = box(x0 + L - g("DHTM_PIN_END"), x0 + L + reach, D - 7.1 - 2.5, D - 5.5,
+        c["DHT11 (pines%s)" % ("" if solder else " + dupont")] = box(x0 + L - g("DHTM_PIN_END"), x0 + L + reach, D - st - 2.5, D - (st - 1.6),
                                                                     cz - 4, cz + 4)
     else:
-        c["DHT11 (pines%s)" % ("" if solder else " + dupont")] = box(x0 + L - 3.5, x0 + L - 1, D - 7.1 - reach, D - 7.1,
+        c["DHT11 (pines%s)" % ("" if solder else " + dupont")] = box(x0 + L - 3.5, x0 + L - 1, D - st - reach, D - st,
                                                                     cz - 4, cz + 4)
 
     # TTP223 in its pocket, components and wires behind.
