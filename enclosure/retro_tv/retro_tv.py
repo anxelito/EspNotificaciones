@@ -4,7 +4,7 @@ Builds, in the active design (use a NEW, empty design):
   * "Cuerpo TV"      -- shell with screen window in a sunken CRT bezel, touch
                         knob (TTP223 pocket behind a 1.2 mm wall), speaker
                         slots, side grille,
-                        antenna socket, leg holes, screw posts, screen posts
+                        antenna socket, leg holes, screw posts, screen corner guides
                         and ESP32 rails with a stop that puts the micro-USB
                         right behind the lid's cable opening.
   * "Tapa trasera"   -- back lid with locating lip, screw holes, vents, a
@@ -37,9 +37,13 @@ R = 10.0                          # corner radius seen from the front
 WALL = 2.4                        # wall thickness
 
 # Screen: 2.4" ST7789 module, landscape. Measure yours!
-PCB_W, PCB_H = 71.0, 43.0         # PCB outline
-PCB_HOLE_INSET = 2.5              # mounting-hole centre from PCB edges
-GLASS_T = 3.5                     # front of glass -> front of PCB
+PCB_W, PCB_H = 63.0, 38.0         # module outline (glass covers almost all of it)
+SCREEN_T = 5.0                    # front of glass -> back of PCB
+GLASS_T = SCREEN_T - 1.6          # front of glass -> front of PCB
+# No room for screws: the module drops into corner guides, face on the wall,
+# and a dot of hot glue (or tape) at each corner keeps it there.
+SCR_FRAME_T, SCR_FRAME_LEG = 1.6, 8.0   # guide wall thickness, leg length
+SCR_CLEAR = 0.3                   # clearance per side
 WIN_W, WIN_H = 49.5, 37.2         # visible area (active 48.96 x 36.72)
 WIN_OFF_X, WIN_OFF_Z = 0.0, 0.0   # visible area offset from PCB centre
 SCR_CX, SCR_CZ = -12.0, 39.0      # PCB centre on the front face
@@ -84,7 +88,6 @@ USB_Z = WALL + RAIL_H + 1.6 + 1.5 # micro-USB centre height
 # Lid and screws
 LID_T, LIP_H, LIP_T, LIP_CLEAR = 2.4, 3.0, 1.6, 0.25
 POST_R, PILOT_D, SCREW_D = 3.5, 2.5, 3.2      # M3 self-tapping, or M2.5
-SCREEN_POST_R, SCREEN_PILOT_D = 2.5, 1.8      # M2 into PCB holes
 
 # Antenna + legs
 ANT_SOCKET_W, ANT_SOCKET_T = 4.4, 3.6         # hole in the top
@@ -315,7 +318,7 @@ def build():
         b.circle(sk, x, y, 0, LEG_HOLE_D / 2)
     b.sym(b.all_profiles(sk), WALL + 1, CUT, BODY)
 
-    # ---- 5. inside: screw posts, screen posts, ESP32 rails --------------------
+    # ---- 5. inside: screw posts, screen corner guides, ESP32 rails --------------------
     corners = [(sx * (W / 2 - R), z) for sx in (-1, 1) for z in (R, H - R)]
     sk = b.sketch("y", (WALL + D) / 2)
     for (x, z) in corners:
@@ -326,17 +329,18 @@ def build():
         b.circle(sk, x, D, z, PILOT_D / 2)
     b.sym(b.all_profiles(sk), 12.0, CUT, BODY)
 
-    hx, hz = PCB_W / 2 - PCB_HOLE_INSET, PCB_H / 2 - PCB_HOLE_INSET
-    spts = [(SCR_CX + sx * hx, SCR_CZ + sz * hz) for sx in (-1, 1) for sz in (-1, 1)]
-    ymid = WALL + GLASS_T / 2
-    sk = b.sketch("y", ymid)
-    for (x, z) in spts:
-        b.circle(sk, x, ymid, z, SCREEN_POST_R)
-    b.sym(b.all_profiles(sk), GLASS_T / 2, JOIN, BODY)
-    sk = b.sketch("y", WALL + GLASS_T)
-    for (x, z) in spts:
-        b.circle(sk, x, WALL + GLASS_T, z, SCREEN_PILOT_D / 2)
-    b.sym(b.all_profiles(sk), GLASS_T - 0.6, CUT, BODY)
+    # Screen corner guides: L-shaped walls just outside the module outline,
+    # as deep as the module, standing on the front wall (prints upright).
+    ymid = WALL + SCREEN_T / 2
+    gx, gz = PCB_W / 2 + SCR_CLEAR, PCB_H / 2 + SCR_CLEAR
+    t, leg = SCR_FRAME_T, SCR_FRAME_LEG
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            sk = b.sketch("y", ymid)
+            cx, cz = SCR_CX + sx * (gx + t / 2), SCR_CZ + sz * (gz + t / 2)
+            b.rrect(sk, front(ymid), SCR_CX + sx * (gx + t - (leg + t) / 2), cz, leg + t, t, 0.2)
+            b.rrect(sk, front(ymid), cx, SCR_CZ + sz * (gz + t - (leg + t) / 2), t, leg + t, 0.2)
+            b.sym(b.all_profiles(sk), SCREEN_T / 2, JOIN, BODY)
 
     # Rails along Y, between the ESP32's pin rows (dupont plugs hang down
     # beside them). A rail under the screen starts behind the screen PCB with
