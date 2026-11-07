@@ -213,6 +213,25 @@ Para comprobar los cambios sin hardware:
 
 El panel usa Spotify si está configurado y responde, y si no, Last.fm. La portada se busca en Last.fm o en iTunes.
 
+### Pendientes de UniFlow (opcional)
+Si usas UniFlow (o cualquier app con una tabla `pendientes` en Supabase), el backend copia tus pendientes al panel cada 2 minutos:
+- solo los de **tu** cuenta, sin hacer, que vencen de hoy a 7 días vista (y los vencidos);
+- los de hoy, mañana y los vencidos salen en rojo, como urgentes;
+- `/done <id>` en Telegram también lo marca hecho en UniFlow;
+- si lo marcas hecho, lo borras o lo mueves más allá de 7 días en UniFlow, desaparece del panel.
+
+En el `.env`:
+
+| Variable | Dónde sale |
+|---|---|
+| `UNIFLOW_SUPABASE_URL` | Supabase → *Project Settings → API* → Project URL |
+| `UNIFLOW_SERVICE_KEY` | la misma página → clave **service_role** |
+| `UNIFLOW_USER_ID` | Supabase → *Authentication → Users* → tu usuario → UID |
+
+La clave `service_role` se salta los permisos de la base de datos: ponla **solo** en el `.env` del backend, nunca en la web ni en el repositorio. El backend solo lee y marca como hechos los pendientes de tu `UNIFLOW_USER_ID`.
+
+Opcionales: `UNIFLOW_DAYS_AHEAD` (7), `UNIFLOW_SYNC_SECONDS` (120), `UNIFLOW_TZ` (`Europe/Madrid`).
+
 ---
 
 ## 6. Elegir mascota
