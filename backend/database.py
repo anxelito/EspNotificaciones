@@ -25,6 +25,15 @@ async def init_db(path: str) -> None:
                 time_display TEXT NOT NULL
             )
         """)
+        # Tasks copied from UniFlow: ext_id = the pendiente's id there,
+        # ext_synced = its "done" has been written back.
+        async with db.execute("PRAGMA table_info(tasks)") as cur:
+            cols = {r[1] for r in await cur.fetchall()}
+        if "ext_id" not in cols:
+            await db.execute("ALTER TABLE tasks ADD COLUMN ext_id TEXT")
+        if "ext_synced" not in cols:
+            await db.execute("ALTER TABLE tasks ADD COLUMN ext_synced INTEGER NOT NULL DEFAULT 0")
+        await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS tasks_ext_id ON tasks (ext_id)")
         await db.commit()
 
 
@@ -101,3 +110,43 @@ async def clear_done_tasks() -> int:
         cursor = await db.execute("DELETE FROM tasks WHERE status='done'")
         await db.commit()
         return cursor.rowcount
+
+
+# ---- tasks linked to an outside source (UniFlow) ----------------------------
+
+async def get_linked_tasks() -> list[dict]:
+    async with aiosqlite.connect(_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT id, ext_id, text, priority, status, ext_synced FROM tasks WHERE ext_id IS NOT NULL"
+        ) as cursor:
+            return [dict(r) for r in await cursor.fetchall()]
+
+
+async def upsert_linked_task(ext_id: str, text: str, priority: str) -> None:
+    """Add the outside task, or refresh its text and priority. One that is
+    open again outside after its done was written back is reopened here."""
+    async with aiosqlite.connect(_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT id, status, ext_synced FROM tasks WHERE ext_id=?", (ext_id,)) as cur:
+            row = await cur.fetchone()
+        if row is None:
+            now = datetime.now()
+            await db.execute(
+                "INSERT INTO tasks (text, priority, created_at, time_display, ext_id) VALUES (?, ?, ?, ?, ?)",
+                (text, priority, now.isoformat(), _fmt(now), ext_id),
+            )
+        elif row["status"] == "done" and not row["ext_synced"]:
+            pass        # done here, not written back yet: keep it done
+        else:
+            await db.execute(
+                "UPDATE tasks SET text=?, priority=?, status='pending', ext_synced=0 WHERE id=?",
+                (text, priority, row["id"]),
+            )
+        await db.commit()
+
+
+async def mark_ext_synced(task_id: int) -> None:
+    async with aiosqlite.connect(_DB_PATH) as db:
+        await db.execute("UPDATE tasks SET ext_synced=1 WHERE id=?", (task_id,))
+        await db.commit()

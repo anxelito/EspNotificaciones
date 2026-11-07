@@ -1,4 +1,5 @@
 # backend/main.py
+import asyncio
 import os
 import unicodedata
 from contextlib import asynccontextmanager
@@ -20,6 +21,7 @@ from spotify import get_now_playing
 import lastfm
 import artwork
 import weather
+import uniflow
 
 _bot_app = None
 
@@ -35,7 +37,11 @@ async def lifespan(app: FastAPI):
         secret_token=os.getenv("TELEGRAM_SECRET_TOKEN"),
     )
     app.state.bot_app = _bot_app
+    cfg = uniflow.config()
+    sync_task = asyncio.create_task(uniflow.run_forever(cfg)) if cfg else None
     yield
+    if sync_task:
+        sync_task.cancel()
     await _bot_app.shutdown()
     _bot_app = None
 
